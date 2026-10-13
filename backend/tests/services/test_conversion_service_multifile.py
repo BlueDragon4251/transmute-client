@@ -26,6 +26,9 @@ class _FakeConverter:
         self.output_dir = Path(output_dir)
 
     def convert(self, quality=None):
+        # Legacy service unit fixture owns its temporary workspace. The client-only
+        # server deliberately does not create file-processing directories.
+        self.output_dir.mkdir(parents=True, exist_ok=True)
         out: list[str] = []
         for name, data in self._payloads:
             target = self.output_dir / name
@@ -54,6 +57,14 @@ def _source_metadata(upload_dir: Path) -> dict:
         "original_filename": "report.pdf",
         "storage_path": str(src),
     }
+
+
+@pytest.fixture(autouse=True)
+def legacy_workspace(safe_path_test_settings, monkeypatch):
+    """Legacy service tests use explicit fixture-owned file storage, never app startup."""
+    safe_path_test_settings.tmp_dir.mkdir(parents=True, exist_ok=True)
+    safe_path_test_settings.output_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr(conversion_service, "get_settings", lambda: safe_path_test_settings)
 
 
 @pytest.fixture

@@ -1,0 +1,23 @@
+# Paste this matcher into the existing :80 block, before its catch-all.
+# Both containers must join the transmute_proxy Docker network.
+:80 {
+    @transmute host transmute transmute. transmute.home.arpa
+    handle @transmute {
+        request_body {
+            max_size 8KB
+        }
+        reverse_proxy transmute-client:3313
+    }
+    handle {
+        respond "Unknown local hostname" 404
+    }
+}
+
+# Add this separate site block for trusted browser features on the LAN.
+transmute.home.arpa {
+    tls internal
+    request_body {
+        max_size 8KB
+    }
+    reverse_proxy transmute-client:3313
+}

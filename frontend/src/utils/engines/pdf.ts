@@ -46,6 +46,7 @@ export async function imagesPdf(files: File[], options: ConversionOptions = {}):
   const pdf = await PDFDocument.create()
   for (const [i, file] of files.entries()) {
     checkpoint(options, i / files.length * 90, 'Bild in PDF einbetten')
+    await (await import('./images')).validateImageSource(file)
     const bitmap = await createImageBitmap(file)
     try {
       const canvas = document.createElement('canvas'); canvas.width = bitmap.width; canvas.height = bitmap.height

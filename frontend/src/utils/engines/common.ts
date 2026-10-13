@@ -14,6 +14,7 @@ export function checkpoint(options: ConversionOptions, value: number, message: s
 }
 export const xmlEscape = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;')
 export function parseXml(source: string): Document {
+  if (source.length > 32 * 1024 * 1024) throw Error('XML überschreitet 32 MiB')
   if (/<!DOCTYPE|<!ENTITY/i.test(source)) throw Error('XML mit DTD/Entities wird abgelehnt')
   const doc = new DOMParser().parseFromString(source, 'application/xml')
   if (doc.getElementsByTagName('parsererror').length) throw Error('Ungültiges XML')

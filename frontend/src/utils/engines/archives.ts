@@ -4,7 +4,7 @@ import { extension, type Result } from './common'
 const LIMIT = 256 * 1024 * 1024
 export function safeEntry(name: string): string {
   const normalized = name.replace(/\\/g, '/')
-  if (normalized.startsWith('/') || /^[A-Za-z]:/.test(normalized) || normalized.split('/').some(s => s === '..') || /[\x00-\x1f]/.test(normalized)) throw Error('Unsicherer Archivpfad')
+  if (normalized.startsWith('/') || /^[A-Za-z]:/.test(normalized) || normalized.split('/').some(s => s === '..') || Array.from(normalized).some(c => c.charCodeAt(0) < 32)) throw Error('Unsicherer Archivpfad')
   return normalized.split('/').filter(s => s && s !== '.').join('/')
 }
 export function readZip(bytes: Uint8Array): Record<string, Uint8Array> {

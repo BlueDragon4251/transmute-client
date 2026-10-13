@@ -1,8 +1,9 @@
-"""Fail-closed network boundary: no employee document bytes reach an API route.
+"""Fail-closed route and payload boundary for the account/settings server.
 
-This middleware protects the legacy application while the server conversion
-stack is removed. It is not a substitute for an audit of the allowed JSON
-schemas: authentication, profiles and settings necessarily transmit user data.
+File-processing routes do not exist. Registered write routes accept only their
+small account/settings payload grammar, implemented in client_only_payloads.
+Credentials/profile values intentionally reach the server; converter content
+never participates in those requests.
 """
 import json
 import re

@@ -1,18 +1,6 @@
-# Transmute Client-only – LAN deployment
+# Host Transmute Client Only on port 9040
 
-This deployment offers the currently implemented browser-local converters and
-per-user settings/account management. It does **not** support legacy server
-converters, PDF/Office/video/CAD/font conversions. See
-[`CLIENT_FORMAT_MATRIX.md`](CLIENT_FORMAT_MATRIX.md) for the exact matrix.
-
-## Requirements
-
-- Docker Desktop with Linux containers, or Docker Engine + Compose v2
-- Caddy with a trusted local DNS entry (e.g. `transmute.home.arpa`)
-- Internal-only access; HTTPS with a CA trusted by each workstation
-- A backup destination for the Docker `transmute_client_data` volume
-
-## Build and launch (Windows PowerShell)
+## Build/start on Windows PowerShell
 
 ```powershell
 git clone https://github.com/BlueDragon4251/transmute-client.git
@@ -21,77 +9,114 @@ git checkout agent/client-only-conversion
 docker compose -f docker-compose.client-only.yml config --quiet
 docker compose -f docker-compose.client-only.yml up --build -d
 docker compose -f docker-compose.client-only.yml ps
-Invoke-WebRequest http://127.0.0.1:9040/api/health/ready
+curl.exe -fsS http://127.0.0.1:9040/api/health/ready
 ```
 
-For upgrades: `git pull --ff-only` and then `docker compose -f
-docker-compose.client-only.yml up --build -d`. Back up the named data volume
-**before** updating. Never point this Compose project at a legacy volume
-containing uploaded employee files: create a fresh volume and migrate only
-accounts/settings through an audited migration.
+For an existing checkout use `git pull --ff-only`, then repeat `up --build -d`.
+The image builds the actual fork locally. Do not use the upstream Transmute image
+or upstream Compose file: those still describe server-side conversion.
 
-## Caddy already running in Docker on this host
+The service runs as UID 10001, drops Linux capabilities and exposes host
+`127.0.0.1:9040` -> container `3313`. The named `transmute_client_data` volume
+holds only account/settings SQLite data. Back it up before updates. Use a fresh
+volume instead of reusing upstream upload storage; do not erase old data blindly.
 
-Add this host matcher in the existing `:80` site block (before the catch-all):
+## Integrate with your existing `shizzi-caddy` container
+
+After Transmute has started, connect the existing Caddy container to the network
+created by its Compose deployment:
+
+```powershell
+docker network connect transmute_proxy shizzi-caddy
+```
+
+If it says Caddy is already connected, continue. Add this matcher **inside the
+existing `:80` block, before its `handle` catch-all**. Keep your PhotoCraft/PDF/
+CADCraft matchers in that block as they are:
 
 ```caddyfile
-@transmute host transmute transmute.home.arpa
+@transmute host transmute transmute. transmute.home.arpa
 handle @transmute {
     request_body {
-        max_size 128KB
+        max_size 8KB
     }
-    reverse_proxy host.docker.internal:9040
+    reverse_proxy transmute-client:3313
 }
 ```
 
-Caddy's host matcher does not create DNS records: configure
-`transmute.home.arpa` to point to the Caddy machine using your local DNS
-service, or add an appropriate entry to each workstation's hosts file.
-Because the Transmute port is bound to 127.0.0.1, the application itself
-is not reachable from other LAN machines outside the reverse proxy.
+This direct Docker-network route works on Windows Docker Desktop and Linux.
+It avoids relying on a loopback-published port being reachable through
+`host.docker.internal`. To preserve it when Caddy is recreated, declare
+`transmute_proxy` as an external network in Caddy's own Compose configuration:
 
-For production use, enable TLS at Caddy with a certificate trusted on every
-workstation, and restrict ingress to the internal network. Check that
-`host.docker.internal` resolves from your Caddy container. If Caddy runs
-natively on the host instead, use `reverse_proxy 127.0.0.1:9040`.
-
-**Do not enable the above global 128KB limit for static SPA assets**: they
-can be much larger than that; this example restricts only request bodies.
-The middleware independently caps API request bodies.
-
-## Initial setup
-
-Visit the HTTPS hostname and create the initial admin, then create each
-employee account using the Users management page. Guest access remains off by
-default. Passwords, names and UI settings are stored server-side. File bytes
-are meant to stay on the user's workstation.
-
-## Verify before employee rollout
-
-```powershell
-# Must answer with 403; no file bytes uploaded.
-curl.exe -i -X POST http://127.0.0.1:9040/api/files/upload
-curl.exe -i -X POST http://127.0.0.1:9040/api/jobs
-# Must answer with successful JSON when server is ready.
-curl.exe -i http://127.0.0.1:9040/api/health/ready
-docker compose -f docker-compose.client-only.yml logs --tail 100
+```yaml
+services:
+  caddy: # use the existing service name
+    networks:
+      - default
+      - transmute_proxy
+networks:
+  transmute_proxy:
+    external: true
+    name: transmute_proxy
 ```
 
-Also verify Browser DevTools Network and the Caddy access log while doing
-an actual file conversion: no POST/PUT/PATCH to any file-processing endpoint
-or external domain should occur. The app will still contact its own server
-for login, settings and user management. This is a **manual check**, not
-formal proof that every allowed JSON field cannot be abused to leak content.
+A native Caddy process can instead use `reverse_proxy 127.0.0.1:9040`.
 
-## Limitations and security gates
+## HTTPS for employee browsers
 
-- No formal network-level non-exfiltration certification has been completed.
-- No full payload/schema audit of permitted account/settings routes.
-- No complete end-to-end test suite for every listed browser codec.
-- Browsers may differ in image/audio encoders and memory limits.
-- A trusted HTTPS connection is recommended for browser features and to
-  protect credentials; no public exposure or confidential production files
-  before a complete data-flow audit.
-- Successful CI Docker builds do not prove correct Caddy/DNS/TLS configuration.
+HTTP on a LAN hostname is not a secure browser context. FFmpeg workers need
+HTTPS (localhost is exempt), and passwords should use TLS. Add a separate site
+block **outside** the `:80` block:
 
-The ongoing Draft PR remains unmerged by design.
+```caddyfile
+transmute.home.arpa {
+    tls internal
+    request_body {
+        max_size 8KB
+    }
+    reverse_proxy transmute-client:3313
+}
+```
+
+Caddy must publish ports 80 and 443. Point `transmute.home.arpa` at the Caddy
+machine using your local DNS/hosts file. Trust the Caddy local CA on each employee
+workstation; do not bypass certificate warnings. On Windows:
+
+```powershell
+docker cp shizzi-caddy:/data/caddy/pki/authorities/local/root.crt .\caddy-root.crt
+certutil -user -addstore Root .\caddy-root.crt
+docker exec shizzi-caddy caddy validate --config /etc/caddy/Caddyfile
+docker exec shizzi-caddy caddy reload --config /etc/caddy/Caddyfile
+```
+
+Open `https://transmute.home.arpa`. The bare `http://transmute` matcher remains
+useful for simple local formats; use HTTPS for the full workspace. Restrict
+Caddy ingress to the trusted LAN. These commands assume your existing Caddy
+uses the standard `/data` CA path and `/etc/caddy/Caddyfile` mount.
+
+## First admin and employees
+
+Create the first admin in the setup screen. Additional accounts require an
+existing admin; use the Users page. Employees cannot manage other users.
+Settings are scoped per user; disabled accounts lose access with existing JWTs.
+
+## Verification
+
+```powershell
+curl.exe -i -X POST http://127.0.0.1:9040/api/files/upload
+curl.exe -i -X POST http://127.0.0.1:9040/api/jobs
+# Both must return 403.
+docker compose -f docker-compose.client-only.yml logs --tail 50
+```
+
+Use local fixtures first. Review `CLIENT_FORMAT_MATRIX.md` before relying on
+formatting: Word/Impress/PowerPoint conversions are text-content reflow, and
+spreadsheet PDF is a text report. Browser results are downloadable links; no
+automatic upload, server processing, filename log or conversion history occurs.
+
+The CI Docker job builds/boots the image, places Caddy in front of it, runs the
+production batch/account/download tests, inspects proxy logs and checks that no
+file-storage directories exist. Passing CI verifies fixtures, not every possible
+file or the DNS/certificates/firewall of your own network. PR #1 remains Draft;
+no merge is required to host the working branch.

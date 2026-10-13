@@ -8,7 +8,7 @@ type Item = { id: number; file: File; format: LocalFormat | ''; state: 'ready'|'
 type Download = { file: File; url: string }
 const labels: Partial<Record<LocalFormat, string>> = { 'pdf-extract': 'PDF · Seiten extrahieren', 'pdf-split': 'PDF · einzelne Seiten als ZIP', 'pdf-rotate': 'PDF · Seiten drehen', 'pdf-png': 'PNG · alle Seiten als ZIP', 'pdf-jpeg': 'JPEG · alle Seiten als ZIP', gunzip: 'GZIP entpacken · Originalformat' }
 const formatLabel = (format: LocalFormat) => labels[format] || format.toUpperCase()
-export function formatNotice(file: File): string {
+function formatNotice(file: File): string {
   const ext = extension(file.name)
   if (['docx','odt','fodt','pptx','odp','fodp'].includes(ext)) return 'Inhaltskonvertierung: Absätze bzw. Folien-Text werden neu gesetzt. Bilder, Tabellenlayout, Formatierung, Diagramme und Animationen werden nicht übernommen.'
   if (['xlsx','xls','xlsb','ods','fods','csv','tsv'].includes(ext)) return 'Tabellen: Werte, Blätter und unterstützte Formeln; keine Makros, Diagramme oder vollständige Formatierung. CSV/TSV exportiert das erste Blatt, PDF einen Textbericht. Formeln werden nicht neu berechnet.'

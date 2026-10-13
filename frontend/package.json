@@ -5,12 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "node scripts/prepare-engines.mjs && tsc && vite build",
+    "build": "node scripts/patch-woff2.mjs && node scripts/prepare-engines.mjs && tsc && vite build",
     "preview": "vite preview",
     "lint": "eslint .",
     "test": "vitest run",
     "check:i18n": "node scripts/check-i18n-keys.mjs",
-    "postinstall": "node scripts/prepare-engines.mjs",
+    "postinstall": "node scripts/patch-woff2.mjs && node scripts/prepare-engines.mjs",
     "test:e2e": "playwright test"
   },
   "dependencies": {

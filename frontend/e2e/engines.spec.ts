@@ -135,3 +135,31 @@ test('media WASM encodes real MP4/WebM/MKV/GIF and common audio codecs',async({p
     if(type==='webm') {const back=await convert(page,'back.webm',out.bytes,'mp4');const doc=join(dir,'back.mp4');writeFileSync(doc,back.bytes);expect(execFileSync('ffprobe',['-v','error','-show_entries','stream=codec_name','-of','csv=p=0',doc],{encoding:'utf8'})).toContain('h264')}
   }
 })
+
+test('CFF OTF creates real TTF contours and WOFF wrappers',async({page})=>{
+  const fixture=JSON.parse(readFileSync('e2e/fixtures/fonts.json','utf8'))
+  const otf=new Uint8Array(Buffer.from(fixture.otf,'base64'))
+  for(const format of ['ttf','woff','woff2']) {
+    const output=await convert(page,'font.otf',otf,format)
+    const ttf=format==='ttf'?output:await convert(page,'font.'+format,output.bytes,'ttf')
+    const font=Font.create(ttf.bytes.buffer,{type:'ttf'}).get()
+    expect(font.glyf.some(g=>g.unicode?.includes(65) && g.contours.length>0)).toBe(true)
+  }
+})
+
+test('JSON YAML XML data transformations preserve types locally',async({page})=>{
+  const data={name:marker,values:[1,true,null,{nested:'<>&'}]}
+  for(const format of ['yaml','xml']) {
+    const converted=await convert(page,'data.json',JSON.stringify(data),format)
+    const back=await convert(page,'data.'+format,converted.bytes,'json')
+    expect(JSON.parse(new TextDecoder().decode(back.bytes))).toEqual(data)
+  }
+  await expect(convert(page,'bad.csv','name,name\na,b','json')).rejects.toThrow(/Spaltennamen/)
+})
+
+test('HTML and SVG cannot activate embedded external URLs',async({page})=>{
+  const html='<p>'+marker+'&amp; text</p><img src="https://evil.example/image"><iframe src="https://evil.example/frame"></iframe><script>fetch("https://evil.example")</script>'
+  const text=await convert(page,'input.html',html,'txt')
+  expect(new TextDecoder().decode(text.bytes)).toContain(marker+'& text')
+  await expect(convert(page,'input.svg','<svg xmlns="http://www.w3.org/2000/svg"><image href="https://evil.example/image"/></svg>','pdf')).rejects.toThrow(/SVG/)
+})

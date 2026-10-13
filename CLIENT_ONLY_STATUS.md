@@ -1,25 +1,34 @@
-# Transmute Client-Only (work in progress)
+# Client-only implementation
 
-This fork's design goal is to leave employee files on the employee workstation. The Docker host serves UI, auth, and settings, not file conversions.
+Real browser engines now cover Office **text-content reflow**, spreadsheet data,
+PDF editing/rendering/text, FFmpeg audio/video, raster images, triangle meshes,
+static fonts, structured data and ZIP/TAR/GZIP. See `CLIENT_FORMAT_MATRIX.md`
+for exact fidelity, unsupported features and resource limits.
 
-## Current implementation
-- Original auth/admin API and pages retained.
-- `backend/client_only_boundary.py` denies server file routes, server conversions, compression, and jobs before multipart bodies are parsed.
-- `frontend/src/pages/LocalConverter.tsx` does **not** call backend APIs for file content.
-- Local audio decode to PCM WAV uses Web Audio (codec input depends on browser). Local converters implement browser-based raster export (PNG, JPEG, WebP, BMP, ICO) and CSV/TSV/JSON transforms with input validated and no network calls. Other recognized text and PDF files can only be copied, not converted.
-- Browser decoding of image formats varies. GIF animation is not preserved; ICO export is a single 256×256 PNG-backed icon.
-- Multiple independent employee sessions remain available via upstream account management.
+The server registers only accounts/authentication/settings/health APIs. It has
+no file, job or conversion endpoints/workers. The API boundary denies unknown
+routes, multipart/binary bodies, non-API writes, unknown payload fields and
+oversized account/settings fields. CSP restricts network resources to this host;
+no update checker, telemetry or runtime CDN is used. No filenames or conversion
+history are sent by the converter. Local download URLs are revoked on clear and
+unmount. Credentials and profile/settings data are intentionally server-side.
 
-## Privacy limitations (NOT production-ready)
-- This work has not yet passed CI/integration or penetration tests.
-- The API boundary uses a denylist and size/content-type limits rather than comprehensive request-schema validation; do not assume no file contents can be transmitted through an arbitrary authenticated JSON field. A fully audited allowlist is needed.
-- Authentication and settings are sent to the host by design.
-- Existing legacy database rows and previously uploaded files are not removed.
-- PDF/Office/media/CAD conversion engines, browser WASM tooling, offline caching, CSP hardening, reverse proxy evaluation, memory limits, and accessibility testing are not complete.
-- Loading a site from a different host is still a network transfer of website code, not an employee-file upload.
+This is an application data-flow property, not a claim that a malicious user
+cannot encode information in a username/password. Use only trusted deployments
+and browsers. SSO, when configured, intentionally communicates account identity
+with the administrator's provider; never document contents.
 
-## Test
-From `frontend`: `npm ci && npm run build && npm test`.
-From `backend` with test requirements installed: `pytest tests/test_client_only_boundary.py`.
+The rootless Docker image installs only account/settings dependencies, removes
+unused converter/service implementations from the image, and persists SQLite
+account/settings data. Port 9040 is mapped to internal 3313. Existing Caddy
+can join `transmute_proxy` and proxy directly to `transmute-client:3313`.
 
-No server conversion fallback is acceptable. Do not deploy with sensitive employee documents until the security audit and traffic-level tests pass.
+Validation commands:
+- `cd frontend && npm ci && npm run build && npm test`
+- `npx playwright install --with-deps chromium firefox && npm run test:e2e`
+- `PYTHONPATH=backend python -m pytest --noconftest -q backend/tests/test_client_only_boundary.py`
+- `docker compose -f docker-compose.client-only.yml up --build -d`
+
+The Draft PR stays open and unmerged as requested. CI artifacts include browser
+traces for failures and a workspace screenshot. Consult the latest commit's CI
+rather than assuming an older green run covers new edits.

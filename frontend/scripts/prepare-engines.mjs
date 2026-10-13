@@ -12,3 +12,14 @@ await copyFile(src('pdfjs-dist/build/pdf.worker.min.mjs'), out('pdf.worker.min.m
 await cp(src('pdfjs-dist/cmaps/'), out('cmaps/'), { recursive: true })
 await cp(src('pdfjs-dist/standard_fonts/'), out('standard_fonts/'), { recursive: true })
 await cp(src('pdfjs-dist/wasm/'), out('pdf-wasm/'), { recursive: true })
+// Preserve dependency license notices alongside the locally distributed assets.
+const licensePackages = ['pdf-lib','@pdf-lib/fontkit','pdfjs-dist','xlsx','docx','pptxgenjs','three','fonteditor-core','fflate','js-yaml','@ffmpeg/ffmpeg']
+const { readdir, readFile, writeFile } = await import('node:fs/promises')
+await mkdir(out('licenses/'),{recursive:true})
+for(const name of licensePackages) {
+  const directory=src(name+'/')
+  for(const filename of await readdir(directory)) if(/^(license|copying|notice)/i.test(filename)) {
+    const content=await readFile(new URL(filename,directory)).catch(()=>null)
+    if(content)await writeFile(out('licenses/'+name.replaceAll('/','-')+'-'+filename),content)
+  }
+}

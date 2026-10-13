@@ -66,16 +66,13 @@ function encodeStructured(data:unknown,to:string):string {
   throw Error('Ziel ist kein strukturiertes Datenformat')
 }
 async function imageOutput(file:File,to:LocalFormat):Promise<Output> {
-  if (ext(file.name) === 'svg') {
-    const source = await file.text()
-    if (/<script|<foreignObject|(?:href|src)\s*=\s*["'](?!#|data:)|url\(\s*["']?(?!#)|<!DOCTYPE|<!ENTITY/i.test(source)) throw Error('SVG mit externen Ressourcen/aktivem Inhalt wird abgelehnt')
-  }
+  await (await import('./engines/images')).validateImageSource(file)
   const bitmap=await createImageBitmap(file)
   try {
     if (bitmap.width * bitmap.height > 40_000_000) throw Error('Bild überschreitet 40 Megapixel')
     const canvas=document.createElement('canvas');canvas.width=bitmap.width;canvas.height=bitmap.height
     const ctx=canvas.getContext('2d');if(!ctx)throw Error('Canvas nicht verfügbar')
-    if(to==='jpeg'){ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height)}
+    if(to==='jpeg'||to==='bmp'){ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height)}
     ctx.drawImage(bitmap,0,0)
     if(to==='bmp'){
       const pixels=ctx.getImageData(0,0,canvas.width,canvas.height)
@@ -119,19 +116,22 @@ async function gzip(file: File, decompress: boolean): Promise<Output> {
       chunks.push(value.slice().buffer as ArrayBuffer)
     }
   } finally { await reader.cancel() }
-  return { blob: new Blob(chunks, {type: decompress ? 'application/octet-stream' : 'application/gzip'}), extension: decompress ? ext(file.name.replace(/\.gz$/i, '')) || 'bin' : ext(file.name) + '.gz' }
+  return { blob: new Blob(chunks, {type: decompress ? 'application/octet-stream' : 'application/gzip'}), extension: decompress ? (file.name.replace(/\.gz$/i, '').includes('.') ? ext(file.name.replace(/\.gz$/i, '')) : 'bin') : ext(file.name) + '.gz' }
 }
 
 export async function convertLocal(file: File, to: LocalFormat, options: ConversionOptions = {}): Promise<Output> {
   const from = ext(file.name)
   if (!formatsFor(file).includes(to)) throw Error('Dieses Formatpaar ist nicht lokal unterstützt')
   if (file.size > 256 * 1024 * 1024) throw Error('Datei überschreitet 256 MiB Browser-Limit')
+  if (documentInputs.includes(from) || sheetInputs.includes(from) || slideInputs.includes(from) || textTypes.has(from)) {
+    if (file.size > 32 * 1024 * 1024) throw Error('Office/Textdatei überschreitet 32 MiB')
+  }
   checkpoint(options, 0, 'Lokal vorbereiten')
   // Yield before CPU work so the progress state can paint.
   await new Promise(resolve => setTimeout(resolve, 0))
   let output: Output
   if (from === 'pdf') output = await (await import('./engines/pdf')).transformPdf(file, to, options)
-  else if (documentInputs.includes(from) || sheetInputs.includes(from) || slideInputs.includes(from) || ['docx','odt','pptx','odp','xlsx','ods','xls'].includes(to) || from === 'html' && to === 'txt') output = await (await import('./engines/office')).officeConvert(file, to, options)
+  else if (documentInputs.includes(from) || sheetInputs.includes(from) || slideInputs.includes(from) || ['docx','odt','pptx','odp','xlsx','ods','xls'].includes(to) || from === 'html' && ['txt','pdf'].includes(to) || ['csv','tsv'].includes(from) && ['html','pdf'].includes(to)) output = await (await import('./engines/office')).officeConvert(file, to, options)
   else if (['stl','obj','ply','gltf','glb'].includes(from)) output = await (await import('./engines/mesh')).meshConvertAdvanced(file, to, options)
   else if (['ttf','otf','woff','woff2'].includes(from)) output = await (await import('./engines/fonts')).fontConvert(file, to as 'ttf'|'woff'|'woff2', options)
   else if (['zip','tar'].includes(from)) output = await (await import('./engines/archives')).archiveConvert(file, to)
@@ -140,7 +140,10 @@ export async function convertLocal(file: File, to: LocalFormat, options: Convers
   else if (imageTypes.has(from) || ['jpg','jfif','gif','avif'].includes(from) || file.type.startsWith('image/')) {
     output = to === 'pdf' ? await (await import('./engines/pdf')).imagesPdf([file], options) : await imageOutput(file, to)
   } else if (to === 'pdf') output = await (await import('./engines/pdf')).textPdf(await file.text(), options)
-  else if (to === 'txt') output = blob(await file.text(), to)
+  else if (to === 'txt' && ['json','yaml','yml','xml'].includes(from)) {
+    const engine = await import('./engines/data')
+    output = blob(engine.writeData(engine.readData(await file.text(), from), 'json'), 'txt')
+  } else if (to === 'txt') output = blob(await file.text(), to)
   else if (['csv','tsv','json','yaml','yml','xml'].includes(from) && ['csv','tsv','json','yaml','xml'].includes(to)) {
     const engine = await import('./engines/data')
     const data = ['csv','tsv'].includes(from) ? readStructured(await file.text(), from) : engine.readData(await file.text(), from)

@@ -1,7 +1,8 @@
 name: Client-only validation
 on:
   push:
-    branches: [agent/client-only-conversion]
+    branches: [main]
+  workflow_dispatch:
   pull_request:
     paths:
       - 'frontend/**'
@@ -39,11 +40,23 @@ jobs:
 
   minimal-docker:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Browser test dependencies
+        working-directory: frontend
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium firefox
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
       - name: Validate deployment configuration
         run: docker compose -f docker-compose.client-only.yml config --quiet
       - name: Build client-only runtime
@@ -51,7 +64,8 @@ jobs:
       - name: Boot image and probe APIs
         run: |
           trap 'docker logs transmute-ci || true' EXIT
-          docker run -d --name transmute-ci -p 127.0.0.1:3313:3313 --health-cmd='python -c "import urllib.request; urllib.request.urlopen(\"http://127.0.0.1:3313/api/health/ready\", timeout=5).close()"' transmute-client:ci
+          docker network create transmute-ci
+          docker run -d --network transmute-ci --name transmute-ci -p 127.0.0.1:3313:3313 --health-cmd='python -c "import urllib.request; urllib.request.urlopen(\"http://127.0.0.1:3313/api/health/ready\", timeout=5).close()"' transmute-client:ci
           for i in $(seq 1 40); do
             if curl -fsS http://127.0.0.1:3313/api/health/live; then break; fi
             sleep 2
@@ -59,3 +73,31 @@ jobs:
           curl -fsS http://127.0.0.1:3313/api/health/ready
           test "$(curl -s -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:3313/api/files/upload)" = 403
           test "$(curl -s -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:3313/api/jobs)" = 403
+      - name: Proxy and production browser verification
+        run: |
+          docker run -d --name caddy-ci --network transmute-ci -p 127.0.0.1:9440:80 -v "$PWD/docker/Caddyfile.ci:/etc/caddy/Caddyfile:ro" caddy:2-alpine
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:9440/api/health/ready; then break; fi
+            sleep 1
+          done
+          # Engine fixtures use the dev harness; account/batch/download tests use
+          # the actual built image through Caddy with CSP and API middleware.
+          cd frontend
+          PRODUCTION_URL=http://127.0.0.1:9440 npm run test:e2e
+      - name: Assert no document traffic or server file storage
+        run: |
+          docker logs caddy-ci > /tmp/caddy-access.log 2>&1
+          if grep -q PRIVATE_MARKER /tmp/caddy-access.log; then cat /tmp/caddy-access.log; exit 1; fi
+          docker exec transmute-ci python -c "from pathlib import Path; p=Path('/app/data'); assert not any((p/name).exists() for name in ('uploads','outputs','chunks','tmp'))"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: browser-verification
+          path: |
+            frontend/playwright-report
+            frontend/test-results
+      - name: Runtime logs
+        if: always()
+        run: |
+          docker logs transmute-ci || true
+          docker logs caddy-ci || true

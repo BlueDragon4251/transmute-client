@@ -67,7 +67,9 @@ export async function officeConvert(file: File, to: string, options: ConversionO
   const from = extension(file.name)
   checkpoint(options, 10, 'Office-Datei lokal lesen')
   if (sheetInputs.includes(from) || ['csv', 'tsv'].includes(from) && ['xlsx', 'ods', 'xls', 'html', 'pdf'].includes(to)) {
-    const workbook = XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: true, WTF: false })
+    const source = new Uint8Array(await file.arrayBuffer())
+    if (source[0] === 80 && source[1] === 75) readZip(source) // bound ZIP expansion before SheetJS parses it
+    const workbook = XLSX.read(source, { type: 'array', cellDates: true, WTF: false })
     if (!workbook.SheetNames.length) throw Error('Keine Tabellenblätter vorhanden')
     if (to === 'xls' && Object.values(workbook.Sheets).some(sheet => Object.entries(sheet).some(([key, cell]) => !key.startsWith('!') && cell && cell.f))) throw Error('XLS-Ausgabe kann Formeln nicht erhalten. XLSX oder ODS auswählen.')
     if (['xlsx', 'ods', 'xls'].includes(to)) return result(XLSX.write(workbook, { bookType: to as XLSX.BookType, type: 'array', compression: true }) as ArrayBuffer, to)
@@ -80,10 +82,17 @@ export async function officeConvert(file: File, to: string, options: ConversionO
   let groups: string[][]
   if (documentInputs.includes(from) || slideInputs.includes(from)) groups = await readOfficeText(file)
   else if (from === 'html') {
-    // XML parser never activates HTML or loads resources. Text-only import.
-    const doc = new DOMParser().parseFromString(await file.text(), 'text/html')
-    doc.querySelectorAll('script,style,iframe,object').forEach(e => e.remove())
-    groups = [(doc.body.textContent || '').split('\n')]
+    // Never build an HTML DOM from employee input: even inert HTML parsers may
+    // fetch img/iframe URLs. Strip markup as text, then decode common entities.
+    const source = (await file.text()).replace(/<(script|style|iframe|object)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, '')
+      .replace(/<\/?(?:p|div|br|h[1-6]|li|tr)\b[^>]*>/gi, '\n').replace(/<[^>]*>/g, '')
+      .replace(/&(#x[0-9a-f]+|#\d+|amp|lt|gt|quot|apos|nbsp);/gi, (whole, entity: string) => {
+        const named: Record<string,string> = {amp:'&',lt:'<',gt:'>',quot:'"',apos:"'",nbsp:' '}
+        if (!entity.startsWith('#')) return named[entity.toLowerCase()] || whole
+        const code = entity[1].toLowerCase() === 'x' ? parseInt(entity.slice(2),16) : Number(entity.slice(1))
+        return code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : whole
+      })
+    groups = [source.split('\n')]
   } else groups = [(await file.text()).replace(/\r/g, '').split('\n')]
   if (!groups.length || !groups.some(g => g.some(Boolean))) throw Error('Kein lesbarer Office-Text vorhanden')
   checkpoint(options, 60, 'Inhalt neu setzen')

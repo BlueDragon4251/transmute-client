@@ -47,10 +47,59 @@ test('production account flow, heterogeneous batch, local download and no file t
   const stream=await download.createReadStream(),chunks=[]
   for await(const chunk of stream!) chunks.push(chunk)
   expect((await PDFDocument.load(Buffer.concat(chunks))).getPageCount()).toBe(1)
-  await page.screenshot({path:'test-results/workspace.png',fullPage:true})
+  await page.locator('main').evaluate(el=>{el.scrollTop=0})
+  await page.screenshot({path:`test-results/workspace-${test.info().project.name}.png`,fullPage:true})
+  await page.setViewportSize({width:390,height:844})
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true)
   // A disabled user cannot keep using an existing token.
   const member=(await memberAuth.json()).user
   expect((await request.patch(base+'/api/users/'+member.uuid,{headers,data:{disabled:true}})).status()).toBe(200)
   expect((await request.get(base+'/api/settings',{headers:memberHeaders})).status()).toBe(403)
   expect((await request.delete(base+'/api/users/'+member.uuid,{headers})).status()).toBe(200)
+})
+
+test('production CSP permits locally bundled Office, media, fonts, mesh and PDF workers',async({page,request,context})=>{
+  test.setTimeout(180000)
+  const {readFileSync,mkdtempSync}=await import('node:fs'),{execFileSync}=await import('node:child_process'),{tmpdir}=await import('node:os'),{join}=await import('node:path')
+  const {unzipSync}=await import('fflate'),XLSX=await import('xlsx'),{Font}=await import('fonteditor-core')
+  if ((await (await request.get(base+'/api/users/bootstrap-status')).json()).requires_setup) await request.post(base+'/api/users',{data:{username:'e2eadmin',password:'Strong-Test-2468',role:'admin'}})
+  const auth=await request.post(base+'/api/users/authenticate',{data:{username:'e2eadmin',password:'Strong-Test-2468'}}),token=(await auth.json()).access_token
+  await page.addInitScript(token=>localStorage.setItem('transmute-access-token',token),token)
+  const requests:string[]=[]
+  await context.route('**/*',async route=>{
+    const req=route.request();expect(new URL(req.url()).origin).toBe(new URL(base).origin)
+    expect(req.url()).not.toContain(marker);expect(req.postData()||'').not.toContain(marker)
+    if(!['GET','HEAD'].includes(req.method()))requests.push(req.url())
+    await route.continue()
+  })
+  const dir=mkdtempSync(join(tmpdir(),'transmute-production-')),video=join(dir,'source.mp4')
+  execFileSync('ffmpeg',['-loglevel','error','-f','lavfi','-i','color=c=blue:s=64x64:r=10:d=0.5','-f','lavfi','-i','sine=frequency=440:duration=0.5','-shortest','-c:v','libx264','-pix_fmt','yuv420p','-c:a','aac','-y',video])
+  const pdf=await PDFDocument.create();pdf.addPage().drawText(marker)
+  const fixture=JSON.parse(readFileSync('e2e/fixtures/fonts.json','utf8'))
+  await page.goto(base+'/');await expect(page.getByRole('heading',{name:'Dateien lokal konvertieren'})).toBeVisible()
+  await page.locator('#local-files').setInputFiles([
+    {name:'text.txt',mimeType:'text/plain',buffer:Buffer.from(marker)},
+    {name:'table.csv',mimeType:'text/csv',buffer:Buffer.from('name,value\n'+marker+',42')},
+    {name:'font.otf',mimeType:'font/otf',buffer:Buffer.from(fixture.otf,'base64')},
+    {name:'video.mp4',mimeType:'video/mp4',buffer:readFileSync(video)},
+    {name:'mesh.obj',mimeType:'text/plain',buffer:Buffer.from('v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3')},
+    {name:'pages.pdf',mimeType:'application/pdf',buffer:Buffer.from(await pdf.save())},
+  ])
+  for(const [name,to] of [['text.txt','docx'],['table.csv','ods'],['font.otf','woff2'],['video.mp4','webm'],['mesh.obj','glb'],['pages.pdf','pdf-png']])await page.getByRole('combobox',{name:'Ausgabe für '+name}).selectOption(to)
+  await page.getByRole('button',{name:'Batch konvertieren'}).click()
+  await expect(page.getByRole('link',{name:'Herunterladen'})).toHaveCount(6,{timeout:90000})
+  const outputs:Buffer[]=[]
+  for(let i=0;i<6;i++){
+    const event=page.waitForEvent('download');await page.getByRole('link',{name:'Herunterladen'}).nth(i).click();const download=await event,stream=await download.createReadStream(),chunks=[]
+    for await(const chunk of stream!)chunks.push(chunk);outputs.push(Buffer.concat(chunks))
+  }
+  expect(Object.keys(unzipSync(outputs[0]))).toContain('word/document.xml')
+  expect(XLSX.read(outputs[1],{type:'buffer'}).Sheets.Sheet1.A2.v).toBe(marker)
+  expect(outputs[2].subarray(0,4).toString()).toBe('wOF2')
+  expect(outputs[3].subarray(0,4)).toEqual(Buffer.from([0x1a,0x45,0xdf,0xa3]))
+  expect(outputs[4].subarray(0,4).toString()).toBe('glTF')
+  expect(Object.keys(unzipSync(outputs[5]))).toContain('page-1.png')
+  expect(requests).toEqual([])
+  // Font import validates the CFF fixture independently too.
+  expect(Font.create(Buffer.from(fixture.otf,'base64'),{type:'otf'}).get().glyf.length).toBeGreaterThan(0)
 })

@@ -7,12 +7,18 @@ function crc32(bytes:Uint8Array):number {
   return (crc^-1)>>>0
 }
 const safeName=(s:string)=>s.split(String.fromCharCode(92)).join('/').split('/').filter(x=>x&&x!=='.'&&x!=='..').join('_').slice(0,160)||'file'
+function uniqueName(name: string, used: Set<string>): string {
+  const safe = safeName(name); let candidate = safe, index = 1
+  while (used.has(candidate)) candidate = `${index++}_${safe}`
+  used.add(candidate); return candidate
+}
 export async function zipFiles(files:File[]):Promise<Blob> {
   if(!files.length)throw Error('Keine Dateien ausgewählt')
   const chunks:Uint8Array[]=[];const directory:Uint8Array[]=[]
-  let offset=0;let count=0
+  let offset=0;let count=0;const used = new Set<string>()
+  if(files.length>2000 || files.reduce((n,f)=>n+f.size,0)>256*1024*1024)throw Error('Archiv überschreitet 256 MiB')
   for(const file of files){
-    const name=encoder.encode(safeName(file.name))
+    const name=encoder.encode(uniqueName(file.name, used))
     const data=new Uint8Array(await file.arrayBuffer())
     if(data.length>0xffffffff || offset+data.length+30+name.length>0xffffffff)throw Error('ZIP64 wird noch nicht unterstützt')
     const crc=crc32(data)
@@ -38,9 +44,10 @@ export async function zipFiles(files:File[]):Promise<Blob> {
 }
 export async function tarFiles(files:File[]):Promise<Blob>{
   if(!files.length)throw Error('Keine Dateien ausgewählt')
-  const parts:BlobPart[]=[]
+  const parts:BlobPart[]=[];const used = new Set<string>()
+  if(files.length>2000 || files.reduce((n,f)=>n+f.size,0)>256*1024*1024)throw Error('Archiv überschreitet 256 MiB/2000 Einträge')
   for(const file of files){
-    const name=encoder.encode(safeName(file.name))
+    const name=encoder.encode(uniqueName(file.name, used))
     if(name.length>100)throw Error('Dateiname für TAR zu lang')
     const header=new Uint8Array(512);header.set(name)
     const oct=(offset:number,length:number,n:number)=>{const value=n.toString(8).padStart(length-1,'0')+String.fromCharCode(0);header.set(encoder.encode(value),offset)}
