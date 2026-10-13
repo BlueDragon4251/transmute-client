@@ -16,7 +16,7 @@ No server-side fallback is allowed.
 | MP3/WAV/AAC/M4A/OGG/FLAC/Opus (browser dependent) | WAV | Web Audio decodeAudioData + PCM encoder | Implemented | Per-codec browser verification outstanding |
 | One or more arbitrary files | ZIP | Local ZIP writer, store method | Implemented, no ZIP64 | Unit tests exist; external extractor check outstanding |
 | One or more arbitrary files | TAR | Local USTAR writer | Implemented | Unit tests exist; external extractor check outstanding |
-| PDF | PDF | Pass-through | Copy **only**, not conversion | Does not count as conversion |
+| PDF | PDF | — | Not advertised; no conversion | Not supported |
 | PDF | Images, Office, text | — | Not supported | — |
 | DOC/DOCX/XLS/XLSX/PPT/PPTX/ODT/ODS/ODP | Other formats | — | Not supported | — |
 | Video (MP4/MOV/AVI/MKV/WebM etc.) | Video/audio | — | Not supported | — |
@@ -30,8 +30,9 @@ No server-side fallback is allowed.
   carry file contents or document metadata; payload-level auditing is still needed.
 - Need reproducible browser E2E tests proving zero requests with file bytes,
   including network capture at the reverse proxy and negative API cases.
-- Legacy Python converter packages and endpoints remain in the repository/image
-  (API middleware rejects conversion endpoints); removal is outstanding.
+- Legacy Python converter packages remain in the repository/image, but the API
+  no longer registers file, job or conversion routers and middleware also rejects
+  access; removing the heavy runtime remains outstanding.
 - The Docker image is based on the large legacy converter runtime and needs a
   successful build on CI before being considered deployable.
 - Existing database/volume contents are not migrated or securely erased.
