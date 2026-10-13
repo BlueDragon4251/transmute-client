@@ -16,13 +16,13 @@ No server-side fallback is allowed.
 | MP3/WAV/AAC/M4A/OGG/FLAC/Opus (browser dependent) | WAV | Web Audio decodeAudioData + PCM encoder | Implemented | Per-codec browser verification outstanding |
 | One or more arbitrary files | ZIP | Local ZIP writer, store method | Implemented, no ZIP64 | Unit tests exist; external extractor check outstanding |
 | One or more arbitrary files | TAR | Local USTAR writer | Implemented | Unit tests exist; external extractor check outstanding |
-| PDF | PDF | — | Not advertised; no conversion | Not supported |
+| TXT and other text-markup sources | PDF | Browser-side minimal PDF Type1 writer (Latin-1) | Implemented, basic text-only pagination | Structural unit tests; no Unicode/shaping/layout |\n| PDF | PDF | — | Not advertised; no conversion | Not supported |
 | PDF | Images, Office, text | — | Not supported | — |
 | DOC/DOCX/XLS/XLSX/PPT/PPTX/ODT/ODS/ODP | Other formats | — | Not supported | — |
 | Video (MP4/MOV/AVI/MKV/WebM etc.) | Video/audio | — | Not supported | — |
 | ZIP/TAR/7z/RAR | Extraction/other archive | — | Not supported (ZIP/TAR creation only) | — |
 | TTF/OTF/WOFF/WOFF2 | Font conversion | — | Not supported | — |
-| STL/OBJ/STEP/DXF/DWG/GLTF/GLB | CAD/3D conversion | — | Not supported | — |
+| ASCII/Binary STL | OBJ | Browser triangle-mesh parser and OBJ writer | Implemented, triangles only | Unit roundtrip test; ignores colors/normals/materials |\n| OBJ | Binary STL | Browser mesh parser, polygon fan-triangulation | Implemented, mesh only | Unit roundtrip test; no materials/UV and complex geometry support |\n| STEP/DXF/DWG/GLTF/GLB | CAD/3D conversion | — | Not supported | — |
 
 ## Production blockers
 
