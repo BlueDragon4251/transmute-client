@@ -10,12 +10,11 @@ export const formatsFor = (file:File):LocalFormat[] => {
   const e=ext(file.name)
   if (e === 'jpg' || e === 'jfif') return ['png','jpeg','webp','bmp','ico']
   if (imageTypes.has(e) || file.type.startsWith('image/')) return ['png','jpeg','webp','bmp','ico']
-  if (e==='json'||e==='csv'||e==='tsv') return ['txt','json','csv','tsv','gz']
-  if (textTypes.has(e)) return ['txt', 'gz', e as LocalFormat]
+  if (e==='json'||e==='csv'||e==='tsv') return (['txt','json','csv','tsv','gz'] as LocalFormat[]).filter(to => to !== e)
+  if (textTypes.has(e)) return e === 'txt' ? ['gz'] : ['txt', 'gz']
   if (['wav','mp3','m4a','aac','ogg','flac','opus','webm'].includes(e) && (file.type.startsWith('audio/') || ['wav','mp3','m4a','aac','ogg','flac','opus'].includes(e))) return ['wav']
   if (e === 'gz') return ['txt']
   // Video is not listed until a validated local transcoder is integrated.
-  if (e==='pdf') return ['pdf']
   return []
 }
 const csvEscape = (s:string, sep:string) => /["\r\n]/.test(s)||s.includes(sep) ? '"'+s.replace(/"/g,'""')+'"' : s
@@ -149,13 +148,8 @@ export async function convertLocal(file:File,to:LocalFormat):Promise<Output> {
   if(to==='webm')return videoWebm()
   if(to==='gz')return gzipText(file)
   if(from==='gz' && to==='txt')return unzipGzip(file)
-  if(from==='pdf'){
-    if(to==='pdf')return {blob:file,extension:'pdf'}
-    throw Error('PDF-Transformation benötigt eine gesonderte lokale Engine')
-  }
   const source=await file.text()
   if(to==='txt')return blob(source,to)
-  if(from===to)return {blob:file,extension:to}
   if((from==='csv'||from==='tsv'||from==='json')&&(to==='csv'||to==='tsv'||to==='json'))
     return blob(encodeStructured(readStructured(source,from),to),to)
   throw Error('Keine verlustfreie lokale Umwandlung für diese Kombination vorhanden')
