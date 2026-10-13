@@ -8,6 +8,7 @@ const mime: Record<string,string> = {png:'image/png',jpeg:'image/jpeg',webp:'ima
 const blob = (value:string, format:string):Output => ({blob:new Blob([value],{type:mime[format]||'text/plain'}),extension:format})
 export const formatsFor = (file:File):LocalFormat[] => {
   const e=ext(file.name)
+  if (e === 'jpg' || e === 'jfif') return ['png','jpeg','webp','bmp','ico']
   if (imageTypes.has(e) || file.type.startsWith('image/')) return ['png','jpeg','webp','bmp','ico']
   if (e==='json'||e==='csv'||e==='tsv') return ['txt','json','csv','tsv']
   if (textTypes.has(e)) return ['txt', e as LocalFormat]
@@ -121,7 +122,7 @@ async function audioToWav(file:File):Promise<Output> {
 export async function convertLocal(file:File,to:LocalFormat):Promise<Output> {
   const from=ext(file.name)
   if(!formatsFor(file).includes(to))throw Error('Dieses Formatpaar ist nicht lokal unterstützt')
-  if(imageTypes.has(from)||file.type.startsWith('image/'))return imageOutput(file,to)
+  if(imageTypes.has(from)||from==='jpg'||from==='jfif'||file.type.startsWith('image/'))return imageOutput(file,to)
   if(to==='wav') return audioToWav(file)
   if(from==='pdf'){
     if(to==='pdf')return {blob:file,extension:'pdf'}
@@ -129,7 +130,7 @@ export async function convertLocal(file:File,to:LocalFormat):Promise<Output> {
   }
   const source=await file.text()
   if(to==='txt')return blob(source,to)
-  if(from===to)return blob(source,to)
+  if(from===to)return {blob:file,extension:to}
   if((from==='csv'||from==='tsv'||from==='json')&&(to==='csv'||to==='tsv'||to==='json'))
     return blob(encodeStructured(readStructured(source,from),to),to)
   throw Error('Keine verlustfreie lokale Umwandlung für diese Kombination vorhanden')
