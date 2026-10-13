@@ -6,7 +6,7 @@ function crc32(bytes:Uint8Array):number {
   for(const byte of bytes){crc^=byte;for(let i=0;i<8;i++)crc=(crc>>>1)^((crc&1)?0xedb88320:0)}
   return (crc^-1)>>>0
 }
-const safeName=(s:string)=>s.replace(/\\\\/g,'/').split('/').filter(x=>x&&x!=='.'&&x!=='..').join('_').slice(0,160)||'file'
+const safeName=(s:string)=>s.split(String.fromCharCode(92)).join('/').split('/').filter(x=>x&&x!=='.'&&x!=='..').join('_').slice(0,160)||'file'
 export async function zipFiles(files:File[]):Promise<Blob> {
   if(!files.length)throw Error('Keine Dateien ausgewählt')
   const chunks:Uint8Array[]=[];const directory:Uint8Array[]=[]
