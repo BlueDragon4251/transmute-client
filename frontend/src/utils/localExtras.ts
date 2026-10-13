@@ -1,8 +1,6 @@
 /** Browser-only generators: real text/PDF and triangle-mesh CAD transformations.
  * No fetch, network access or server component.
  */
-const enc = new TextEncoder()
-const ascii = (s:string) => enc.encode(s)
 export type ExtraOutput = {blob:Blob;extension:string}
 const pdfEscape=(s:string)=>s.replace(/[\\()]/g,ch=>'\\'+ch)
 export async function plainTextPdf(file:File):Promise<ExtraOutput> {
@@ -36,7 +34,7 @@ export async function plainTextPdf(file:File):Promise<ExtraOutput> {
   for(const offset of offsets.slice(1)) result+=String(offset).padStart(10,'0')+' 00000 n \n'
   result+='trailer\n<< /Root '+catalog+' 0 R /Size '+(objects.length+1)+' >>\nstartxref\n'+xref+'\n%%EOF\n'
   // WinAnsi Type1 PDF stores bytes, not UTF-8. Convert deliberately.
-  const bytes=Uint8Array.from(result, c=>c.charCodeAt(0)&255)
+  const bytes=Uint8Array.from([...result].map(c=>c.charCodeAt(0)&255))
   return {blob:new Blob([bytes],{type:'application/pdf'}),extension:'pdf'}
 }
 type Vec=[number,number,number]
