@@ -2,7 +2,7 @@ export type ConversionOptions = {
   pages?: string; rotation?: number; scale?: number; quality?: number
   signal?: AbortSignal; onProgress?: (value: number, message: string) => void
 }
-export type Result = { blob: Blob; extension: string }
+export type Result = { blob: Blob; extension: string; warnings?: string[] }
 export const extension = (name: string) => name.split('.').pop()?.toLowerCase() || ''
 export const asset = (path: string) => new URL(path, document.baseURI).href
 export function result(bytes: Uint8Array | ArrayBuffer | string, extension: string, type = 'application/octet-stream'): Result {

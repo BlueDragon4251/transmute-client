@@ -101,12 +101,22 @@ export async function transformPdf(file: File, to: string, options: ConversionOp
   try {
     const pdf = await task.promise
     const indices = pageIndices(options.pages, pdf.numPages), outputs: File[] = [], text: string[] = []
-    for (const i of indices) {
-      checkpoint(options, outputs.length / indices.length * 90, 'PDF-Seite lesen')
+    for (const [index,i] of indices.entries()) {
+      checkpoint(options, index / indices.length * 90, 'PDF-Seite lesen')
       const page = await pdf.getPage(i + 1)
       if (to === 'txt') {
         const content = await page.getTextContent()
-        text.push(content.items.map(item => 'str' in item ? item.str + (item.hasEOL ? '\n' : ' ') : '').join(''))
+        let value = '', previous: {str:string;width:number;height:number;transform:number[];hasEOL?:boolean} | undefined
+        for (const item of content.items) {
+          if (!('str' in item)) continue
+          if (previous) {
+            const lineChanged = previous.hasEOL || Math.abs(item.transform[5]-previous.transform[5]) > Math.max(item.height,previous.height)*0.6
+            if (lineChanged && !value.endsWith('\n')) value+='\n'
+            else if (!lineChanged && !/\s$/.test(value) && !/^\s/.test(item.str) && item.transform[4]-(previous.transform[4]+previous.width)>Math.max(0.1,item.height*0.12)) value+=' '
+          }
+          value+=item.str; previous=item
+        }
+        text.push(value)
       } else {
         const viewport = page.getViewport({ scale: options.scale || 1.5 })
         if (viewport.width * viewport.height > 40_000_000) throw Error('PDF-Seite überschreitet 40 Megapixel')

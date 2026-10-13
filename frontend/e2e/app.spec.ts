@@ -103,3 +103,20 @@ test('production CSP permits locally bundled Office, media, fonts, mesh and PDF 
   // Font import validates the CFF fixture independently too.
   expect(Font.create(Buffer.from(fixture.otf,'base64'),{type:'otf'}).get().glyf.length).toBeGreaterThan(0)
 })
+
+test('production rich Office conversions retain formatting and images without file traffic',async({page,request,context})=>{
+ const {richDocumentFixture}=await import('./officeFixtures'),{unzipSync}=await import('fflate')
+ const auth=await request.post(base+'/api/users/authenticate',{data:{username:'e2eadmin',password:'Strong-Test-2468'}}),token=(await auth.json()).access_token
+ await page.addInitScript(token=>localStorage.setItem('transmute-access-token',token),token)
+ await context.route('**/*',async route=>{const req=route.request();expect(new URL(req.url()).origin).toBe(new URL(base).origin);expect(req.method()).toBe('GET');expect(req.url()).not.toContain('RICH_PRIVATE_OFFICE');await route.continue()})
+ await page.goto(base+'/');await expect(page.getByRole('heading',{name:'Dateien lokal konvertieren'})).toBeVisible()
+ const bytes=Buffer.from(await richDocumentFixture())
+ await page.locator('#local-files').setInputFiles([{name:'rich.docx',mimeType:'application/vnd.openxmlformats-officedocument.wordprocessingml.document',buffer:bytes},{name:'rich-pdf.docx',mimeType:'application/vnd.openxmlformats-officedocument.wordprocessingml.document',buffer:bytes}])
+ await page.getByRole('combobox',{name:'Ausgabe für rich.docx',exact:true}).selectOption('odt')
+ await page.getByRole('combobox',{name:'Ausgabe für rich-pdf.docx',exact:true}).selectOption('pdf')
+ await page.getByRole('button',{name:'Batch konvertieren'}).click();await expect(page.getByRole('link',{name:'Herunterladen'})).toHaveCount(2)
+ const outputs:Buffer[]=[]
+ for(let i=0;i<2;i++){const event=page.waitForEvent('download');await page.getByRole('link',{name:'Herunterladen'}).nth(i).click();const stream=await (await event).createReadStream(),chunks=[];for await(const chunk of stream!)chunks.push(chunk);outputs.push(Buffer.concat(chunks))}
+ const odt=unzipSync(outputs[0]);expect(Object.keys(odt)).toContain('Pictures/image-1.png');expect(new TextDecoder().decode(odt['content.xml'])).toContain('fo:font-weight="bold"')
+ const pdf=await PDFDocument.load(outputs[1]);expect(pdf.getPageCount()).toBeGreaterThanOrEqual(2);expect(pdf.context.enumerateIndirectObjects().some(([,v])=>v.toString().includes('/Subtype /Image'))).toBe(true)
+})

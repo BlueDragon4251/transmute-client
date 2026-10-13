@@ -25,7 +25,7 @@ relabel it as MIT. Keep corresponding source/build instructions available with
 redistributions. Dependency license texts are retained in the runtime
 `engines/licenses` directory by the build script.
 
-`public/fonts/DejaVuSans.ttf` is a subset of DejaVu Sans (Latin, Greek, Cyrillic,
+`public/fonts/DejaVuSans.ttf` and `DejaVuSans-Bold.ttf` are subsets of DejaVu Sans (Latin, Greek, Cyrillic,
 common punctuation). The original Bitstream/DejaVu license is included beside
 it in `LICENSE-DejaVu.txt`. Text outside that coverage fails instead of drawing
 missing glyphs. User-provided fonts have their own license/embedding rights.
@@ -34,3 +34,5 @@ The pinned WOFF2 JavaScript glue receives a deterministic, fail-closed build pat
 (`scripts/patch-woff2.mjs`): three dynamically generated callback wrappers are
 replaced with equivalent closures. This keeps `unsafe-eval` out of the CSP. The
 WOFF2 WASM binary is unchanged. Browser roundtrips run against this patched glue.
+
+Rich PDF exports embed regular/bold DejaVu fonts. Italic is synthesized by shearing glyphs while preserving the text baseline. Original Office font families are not embedded or fetched.

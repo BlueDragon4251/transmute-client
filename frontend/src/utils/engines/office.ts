@@ -79,6 +79,19 @@ export async function officeConvert(file: File, to: string, options: ConversionO
     if (to === 'pdf') return textPdf(sheets.map(s => s.name + '\n' + s.rows.map(r => r.join(' | ')).join('\n')).join('\n\n'), options)
     return result(to === 'txt' ? sheets.map(s => s.name + '\n' + s.rows.map(r => r.join('\t')).join('\n')).join('\n\n') : XLSX.utils.sheet_to_csv(workbook.Sheets[workbook.SheetNames[0]], { FS: to === 'tsv' ? '\t' : ',' }), to, 'text/plain;charset=utf-8')
   }
+  if (slideInputs.includes(from)) return (await import('./presentation')).presentationConvert(file,to,options)
+  if (documentInputs.includes(from)) {
+    const model = await (await import('./documentReader')).readRichDocument(file)
+    checkpoint(options, 35, 'Office-Struktur exportieren')
+    let output: Result
+    if (to === 'txt') output = result((await import('./officeModel')).blockText(model.blocks), 'txt', 'text/plain;charset=utf-8')
+    else if (to === 'pdf') output = await (await import('./richPdf')).richDocumentPdf(model, options)
+    else if (to === 'docx') output = await (await import('./documentWriter')).documentDocx(model)
+    else if (to === 'odt') output = (await import('./documentWriter')).documentOdt(model)
+    else if (to === 'html') output = (await import('./documentWriter')).documentHtml(model)
+    else throw Error('Nicht unterstütztes Dokument-Ziel')
+    return {...output, warnings:model.warnings}
+  }
   let groups: string[][]
   if (documentInputs.includes(from) || slideInputs.includes(from)) groups = await readOfficeText(file)
   else if (from === 'html') {

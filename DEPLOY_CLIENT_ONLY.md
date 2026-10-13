@@ -111,7 +111,7 @@ docker compose -f docker-compose.client-only.yml logs --tail 50
 ```
 
 Use local fixtures first. Review `CLIENT_FORMAT_MATRIX.md` before relying on
-formatting: Word/Impress/PowerPoint conversions are text-content reflow, and
+formatting: Word/Impress/PowerPoint retain supported formatting/images/tables, with warnings for unsupported layout features, and
 spreadsheet PDF is a text report. Browser results are downloadable links; no
 automatic upload, server processing, filename log or conversion history occurs.
 

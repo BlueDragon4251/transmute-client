@@ -22,7 +22,7 @@ in [DEPLOY_CLIENT_ONLY.md](DEPLOY_CLIENT_ONLY.md).
 
 | Area | Browser functionality |
 |---|---|
-| Office documents / slides | DOCX/ODT and PPTX/ODP **text-content reflow**, TXT/HTML/PDF export |
+| Office documents / slides | DOCX/ODT formatting, headings, raster images and tables; PPTX/ODP positioned text/images/basic shapes/tables; TXT/HTML/PDF export |
 | Spreadsheets | XLSX/ODS/XLS data conversion, multiple sheets, supported formulas, CSV/TSV/JSON/HTML/text/PDF report |
 | PDF | Create from text/images, merge, extract/reorder, split, rotate, render PNG/JPEG, extract text layer |
 | Video / audio | Local FFmpeg-WASM MP4/WebM/MKV/GIF and MP3/WAV/FLAC/OGG/M4A/Opus |
@@ -34,9 +34,9 @@ The workspace supports heterogeneous batches, per-file targets, progress,
 errors, cancellation, explicit local downloads and an all-results ZIP.
 Accounts and settings are isolated per employee; only admins manage users.
 
-**Read the [format matrix](CLIENT_FORMAT_MATRIX.md).** Word/PowerPoint are
-content conversions, not full-fidelity Office rendering. Original formatting,
-images and charts are not retained by those paths. OCR, PDF/A, DWG/STEP, OTF
+**Read the [format matrix](CLIENT_FORMAT_MATRIX.md).** Word/PowerPoint preserve supported structure, formatting, raster images and
+tables. Full-fidelity Office rendering, complex masters/sections, charts and
+animations remain outside the supported model; conversion warnings identify losses. OCR, PDF/A, DWG/STEP, OTF
 creation and RAR/7z are not offered. Unsupported content fails locally.
 
 Current desktop Chromium (Chrome/Edge family) and Firefox are covered by browser

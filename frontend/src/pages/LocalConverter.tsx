@@ -10,7 +10,8 @@ const labels: Partial<Record<LocalFormat, string>> = { 'pdf-extract': 'PDF · Se
 const formatLabel = (format: LocalFormat) => labels[format] || format.toUpperCase()
 function formatNotice(file: File): string {
   const ext = extension(file.name)
-  if (['docx','odt','fodt','pptx','odp','fodp'].includes(ext)) return 'Inhaltskonvertierung: Absätze bzw. Folien-Text werden neu gesetzt. Bilder, Tabellenlayout, Formatierung, Diagramme und Animationen werden nicht übernommen.'
+  if (['docx','odt','fodt'].includes(ext)) return 'Dokumente: Absätze, Überschriften, grundlegende Textformatierung, Rasterbilder und Tabellen werden übernommen. Schriftfamilien, schwebende Objekte, Kopf-/Fußzeilen und komplexe Seitenlayouts können abweichen. Verluste erscheinen als Hinweise.'
+  if (['pptx','odp','fodp'].includes(ext)) return 'Folien: Textformatierung, Positionen, Rasterbilder, einfache Formen und Tabellen. Schriftfamilien, Master-Elemente, Diagramme, Animationen und komplexe Transformationen können abweichen; Hinweise werden pro Ergebnis angezeigt.'
   if (['xlsx','xls','xlsb','ods','fods','csv','tsv'].includes(ext)) return 'Tabellen: Werte, Blätter und unterstützte Formeln; keine Makros, Diagramme oder vollständige Formatierung. CSV/TSV exportiert das erste Blatt, PDF einen Textbericht. Formeln werden nicht neu berechnet.'
   if (ext === 'pdf') return 'PDF-Bilder enthalten alle ausgewählten Seiten als ZIP. Text benötigt eine Textschicht; keine OCR. Änderungen können digitale Signaturen ungültig machen. Geschützte PDFs werden abgelehnt.'
   if (['stl','obj','ply','gltf','glb'].includes(ext)) return '3D-Meshes: STL/OBJ/PLY verlieren Materialien, UVs und Szenenfunktionen. GLTF muss Ressourcen einbetten. Kein STEP/DWG; keine externen Ressourcen oder Kompressions-Erweiterungen.'
@@ -62,7 +63,7 @@ export default function LocalConverter() {
           const output = await convertLocal(item.file, item.format, { pages, rotation, signal: abort.signal, onProgress: (progress,message) => patch(item.id,{progress,message}) })
           const name = item.file.name.replace(/\.[^.]+$/, '') + '.' + output.extension
           addDownload(new File([output.blob],name,{type:output.blob.type}))
-          patch(item.id,{state:'done',progress:100,message:'Fertig · Download bereit'})
+          patch(item.id,{state:'done',progress:100,message:'Fertig · Download bereit'+(output.warnings?.length?' · Hinweise: '+output.warnings.join(' '):'')})
         } catch (e) { patch(item.id,{state:'error',progress:100,message:abort.signal.aborted ? 'Abgebrochen' : e instanceof Error ? e.message : 'Konvertierung fehlgeschlagen'}) }
       }
     } finally { controller.current = null; setBusy(false) }
@@ -139,7 +140,7 @@ export default function LocalConverter() {
       <p className="mt-4 text-xs text-text-muted">Ergebnisse liegen nur im Arbeitsspeicher dieses Tabs. Vor dem Schließen herunterladen.</p>
     </section>}
     <details className="mt-6 rounded-2xl border border-surface-light p-5 text-sm text-text-muted"><summary className="cursor-pointer font-semibold text-text">Unterstützung und Grenzen</summary>
-      <p className="mt-3 leading-relaxed">Die Auswahlliste zeigt echte lokale Konverter. DOCX/ODT/PPTX/ODP sind Inhaltskonvertierungen, kein Ersatz für eine Office-Layoutengine. DOC/PPT, DWG/STEP, OCR, PDF/A, OTF-Erstellung und RAR/7z werden nicht angeboten. Beschädigte, verschlüsselte oder vom Decoder nicht unterstützte Dateien erhalten einen Fehler.</p>
+      <p className="mt-3 leading-relaxed">Die Auswahlliste zeigt echte lokale Konverter. DOCX/ODT erhalten grundlegende Formatierung, Bilder und Tabellen; PPTX/ODP übernehmen unterstützte Folienobjekte und Positionen. Komplexe Office-Layouts bleiben eingeschränkt. DOC/PPT, DWG/STEP, OCR, PDF/A, OTF-Erstellung und RAR/7z werden nicht angeboten. Beschädigte, verschlüsselte oder vom Decoder nicht unterstützte Dateien erhalten einen Fehler.</p>
       <p className="mt-3 leading-relaxed">Aktuelle Desktop-Browser verwenden. Medien und komplexe Dateien brauchen Arbeitsspeicher und können länger dauern. Der Server speichert nur Konten und Einstellungen; keine Dateinamen, Konvertierungshistorie oder Inhalte.</p>
     </details>
   </div>

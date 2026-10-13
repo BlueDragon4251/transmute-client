@@ -1,8 +1,8 @@
-import { checkpoint, type ConversionOptions } from './engines/common'
+import { checkpoint, type ConversionOptions, type Result } from './engines/common'
 import { documentInputs, sheetInputs, slideInputs, audioInputs, videoInputs, audioOutputs, videoOutputs } from './engines/capabilities'
 /** Entirely local conversions. No fetch, XMLHttpRequest, or server fallback. */
 export type LocalFormat = 'png'|'jpeg'|'webp'|'bmp'|'ico'|'txt'|'json'|'csv'|'tsv'|'html'|'xml'|'md'|'yaml'|'yml'|'pdf'|'zip'|'tar'|'wav'|'gz'|'gunzip'|'webm'|'mp4'|'mkv'|'gif'|'mp3'|'flac'|'ogg'|'m4a'|'opus'|'obj'|'stl'|'ply'|'gltf'|'glb'|'ttf'|'woff'|'woff2'|'docx'|'odt'|'xlsx'|'ods'|'xls'|'pptx'|'odp'|'pdf-extract'|'pdf-split'|'pdf-rotate'|'pdf-png'|'pdf-jpeg'
-export type Output = { blob: Blob; extension: string }
+export type Output = Result
 const textTypes = new Set(['txt','json','csv','tsv','html','xml','md','yaml','yml'])
 const imageTypes = new Set(['png','jpeg','webp','bmp','ico','svg'])
 const ext = (s:string) => s.split('.').pop()?.toLowerCase() || ''
