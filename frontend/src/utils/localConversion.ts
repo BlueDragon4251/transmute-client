@@ -1,5 +1,6 @@
+import { plainTextPdf, meshConvert } from './localExtras'
 /** Entirely local conversions. No fetch, XMLHttpRequest, or server fallback. */
-export type LocalFormat = 'png'|'jpeg'|'webp'|'bmp'|'ico'|'svg'|'txt'|'json'|'csv'|'tsv'|'html'|'xml'|'md'|'yaml'|'yml'|'pdf'|'zip'|'wav'|'gz'|'webm'
+export type LocalFormat = 'png'|'jpeg'|'webp'|'bmp'|'ico'|'svg'|'txt'|'json'|'csv'|'tsv'|'html'|'xml'|'md'|'yaml'|'yml'|'pdf'|'zip'|'wav'|'gz'|'webm'|'obj'|'stl'
 export type Output = { blob: Blob; extension: string }
 const textTypes = new Set(['txt','json','csv','tsv','html','xml','md','yaml','yml'])
 const imageTypes = new Set(['png','jpeg','webp','bmp','ico','svg'])
@@ -11,9 +12,11 @@ export const formatsFor = (file:File):LocalFormat[] => {
   if (e === 'jpg' || e === 'jfif') return ['png','jpeg','webp','bmp','ico']
   if (imageTypes.has(e) || file.type.startsWith('image/')) return ['png','jpeg','webp','bmp','ico']
   if (e==='json'||e==='csv'||e==='tsv') return (['txt','json','csv','tsv','gz'] as LocalFormat[]).filter(to => to !== e)
-  if (textTypes.has(e)) return e === 'txt' ? ['gz'] : ['txt', 'gz']
+  if (textTypes.has(e)) return e === 'txt' ? ['gz','pdf'] : ['txt', 'gz', 'pdf']
   if (['wav','mp3','m4a','aac','ogg','flac','opus','webm'].includes(e) && (file.type.startsWith('audio/') || ['wav','mp3','m4a','aac','ogg','flac','opus'].includes(e))) return ['wav']
   if (e === 'gz') return ['txt']
+  if (e === 'stl') return ['obj']
+  if (e === 'obj') return ['stl']
   // Video is not listed until a validated local transcoder is integrated.
   return []
 }
@@ -144,6 +147,8 @@ export async function convertLocal(file:File,to:LocalFormat):Promise<Output> {
   const from=ext(file.name)
   if(!formatsFor(file).includes(to))throw Error('Dieses Formatpaar ist nicht lokal unterstützt')
   if(imageTypes.has(from)||from==='jpg'||from==='jfif'||file.type.startsWith('image/'))return imageOutput(file,to)
+  if(to==='obj'||to==='stl')return meshConvert(file,to)
+  if(to==='pdf')return plainTextPdf(file)
   if(to==='wav') return audioToWav(file)
   if(to==='webm')return videoWebm()
   if(to==='gz')return gzipText(file)
