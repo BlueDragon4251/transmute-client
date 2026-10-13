@@ -53,3 +53,17 @@ def test_small_account_request_remains_possible():
         b"content-type": b"application/json",
     }, chunks=(json.dumps({"username": "test", "password": "test"}).encode(),)))
     assert status == 204 and calls == ["reached"]
+
+
+def test_unknown_api_route_denied():
+    status, calls = asyncio.run(invoke("/api/new-file-upload-service", headers={
+        b"content-type": b"application/json",
+    }, chunks=(b'{"file":"sensitive"}',)))
+    assert status == 403 and not calls
+
+
+def test_auth_multipart_denied():
+    status, calls = asyncio.run(invoke("/api/users/login", headers={
+        b"content-type": b"multipart/form-data; boundary=x",
+    }))
+    assert status == 403 and not calls
