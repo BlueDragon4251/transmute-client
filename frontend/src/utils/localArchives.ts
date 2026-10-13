@@ -43,10 +43,10 @@ export async function tarFiles(files:File[]):Promise<Blob>{
     const name=encoder.encode(safeName(file.name))
     if(name.length>100)throw Error('Dateiname für TAR zu lang')
     const header=new Uint8Array(512);header.set(name)
-    const oct=(offset:number,length:number,n:number)=>{const value=n.toString(8).padStart(length-1,'0')+'\\0';header.set(encoder.encode(value),offset)}
+    const oct=(offset:number,length:number,n:number)=>{const value=n.toString(8).padStart(length-1,'0')+String.fromCharCode(0);header.set(encoder.encode(value),offset)}
     oct(100,8,0o644);oct(108,8,0);oct(116,8,0);oct(124,12,file.size)
     oct(136,12,Math.floor(file.lastModified/1000));header.fill(32,148,156)
-    header[156]=48;header.set(encoder.encode('ustar\\0'),257);header.set(encoder.encode('00'),263)
+    header[156]=48;header.set(encoder.encode('ustar'+String.fromCharCode(0)),257);header.set(encoder.encode('00'),263)
     const sum=header.reduce((a,b)=>a+b,0);oct(148,8,sum)
     parts.push(header.buffer as ArrayBuffer,file)
     const pad=(512-file.size%512)%512;if(pad)parts.push(new Uint8Array(pad).buffer as ArrayBuffer)
