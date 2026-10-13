@@ -2,10 +2,10 @@ import pptxgen from 'pptxgenjs'
 import { zipSync,strToU8 } from 'fflate'
 import { PDFDocument,rgb,degrees } from 'pdf-lib'
 import { checkpoint,extension,result,xmlEscape,type ConversionOptions,type Result } from './common'
-import { attribute as attr,child,colorValue,dataUri,elements,embeddedImage,lengthPoints,localPart,namespaces as ns,packageEntries,packageXml,relationships,type EmbeddedImage,type ParagraphBlock,type TextPiece,type TableBlock } from './officeModel'
+import { attribute as attr,child,positiveCount,boundedTableRows,colorValue,dataUri,elements,embeddedImage,lengthPoints,localPart,namespaces as ns,packageEntries,packageXml,relationships,type EmbeddedImage,type ParagraphBlock,type TextPiece,type TableBlock } from './officeModel'
 import { richDocumentPdf } from './richPdf'
 const P='http://schemas.openxmlformats.org/presentationml/2006/main',PRESENT='urn:oasis:names:tc:opendocument:xmlns:presentation:1.0'
-type Box={x:number;y:number;width:number;height:number;rotation?:number}
+type Box={x:number;y:number;width:number;height:number;rotation?:number;flipV?:boolean}
 type Shape=Box & ({kind:'text';paragraphs:ParagraphBlock[];fill?:string}|{kind:'image';image:EmbeddedImage}|{kind:'table';table:TableBlock}|{kind:'shape';shape:'rect'|'ellipse'|'line';fill?:string;line?:string})
 type Slide={shapes:Shape[];background?:string}
 export type RichPresentation={width:number;height:number;slides:Slide[];warnings:string[]}
@@ -25,7 +25,7 @@ export async function readRichPresentation(file:File,options:ConversionOptions={
     const fallback=layout&&elements(layout,P,'sp').find(s=>{const p=elements(s,P,'ph')[0];return p&&(p.getAttribute('idx')||'')===id&&(p.getAttribute('type')||'')===type});transform=fallback?elements(fallback,ns.a,'xfrm')[0]:undefined
    }
    const off=child(transform,ns.a,'off'),extent=child(transform,ns.a,'ext')
-   return {x:Number(off?.getAttribute('x'))/12700||0,y:Number(off?.getAttribute('y'))/12700||0,width:Number(extent?.getAttribute('cx'))/12700||model.width,height:Number(extent?.getAttribute('cy'))/12700||model.height,rotation:Number(transform?.getAttribute('rot'))/60000||0}
+   return {x:Number(off?.getAttribute('x'))/12700||0,y:Number(off?.getAttribute('y'))/12700||0,width:extent?.hasAttribute('cx')?Number(extent.getAttribute('cx'))/12700:model.width,height:extent?.hasAttribute('cy')?Number(extent.getAttribute('cy'))/12700:model.height,rotation:Number(transform?.getAttribute('rot'))/60000||0,flipV:(transform?.getAttribute('flipV')==='1')!==(transform?.getAttribute('flipH')==='1')}
   }
   function paragraphs(parent:Element):ParagraphBlock[]{
    return elements(parent,ns.a,'p').map(p=>{
@@ -66,8 +66,8 @@ export async function readRichPresentation(file:File,options:ConversionOptions={
      const transform=child(shape,P,'xfrm'),off=child(transform,ns.a,'off'),extent=child(transform,ns.a,'ext')
      const frame={x:Number(off?.getAttribute('x'))/12700||0,y:Number(off?.getAttribute('y'))/12700||0,width:Number(extent?.getAttribute('cx'))/12700||bounds.width,height:Number(extent?.getAttribute('cy'))/12700||bounds.height}
      const table=elements(shape,ns.a,'tbl')[0]
-     if(table){const rows=elements(table,ns.a,'tr').map(tr=>Array.from(tr.children).filter(e=>e.localName==='tc').map(tc=>({blocks:paragraphs(tc),span:Number(tc.getAttribute('gridSpan'))||1,fill:fill(child(tc,ns.a,'tcPr'))})))
-      slide.shapes.push({...frame,kind:'table',table:{kind:'table',rows}})
+     if(table){const rows=elements(table,ns.a,'tr').map(tr=>Array.from(tr.children).filter(e=>e.localName==='tc').map(tc=>({blocks:paragraphs(tc),span:positiveCount(tc.getAttribute('gridSpan')||''),fill:fill(child(tc,ns.a,'tcPr'))})))
+      boundedTableRows(rows);slide.shapes.push({...frame,kind:'table',table:{kind:'table',rows}})
      }else warn('Diagramme, SmartArt und eingebettete Office-Objekte werden nicht übernommen.')
     }else if(shape.localName==='grpSp')warn('Gruppierte Folienobjekte werden derzeit nicht übernommen.')
    }
@@ -77,7 +77,7 @@ export async function readRichPresentation(file:File,options:ConversionOptions={
  }else{
   const xml=flat||packageXml(entries,'content.xml'),styleXml=entries['styles.xml']?packageXml(entries,'styles.xml'):undefined,styles=new Map<string,Element>()
   for(const doc of [styleXml,xml])if(doc)for(const s of elements(doc,ns.style,'style'))styles.set(attr(s,ns.style,'name'),s)
-  const layout=styleXml&&elements(styleXml,ns.style,'page-layout-properties')[0]
+  const layout=elements(styleXml||xml,ns.style,'page-layout-properties')[0]
   model.width=lengthPoints(attr(layout||undefined,ns.fo,'page-width'))||960;model.height=lengthPoints(attr(layout||undefined,ns.fo,'page-height'))||540
   function textStyle(name:string,seen=new Set<string>()):Omit<TextPiece,'text'>{
    if(!name||seen.has(name))return {};seen.add(name);const s=styles.get(name),properties=child(s,ns.style,'text-properties')
@@ -97,12 +97,13 @@ export async function readRichPresentation(file:File,options:ConversionOptions={
    checkpoint(options,10+index*2,'ODP-Folie lokal lesen');const slide:Slide={shapes:[]}
    const pageStyle=child(styles.get(attr(page,ns.draw,'style-name')),ns.style,'drawing-page-properties');slide.background=colorValue(attr(pageStyle,ns.draw,'fill-color'))
    for(const shape of Array.from(page.children)){
-    const bounds={x:lengthPoints(attr(shape,ns.svg,'x'))||0,y:lengthPoints(attr(shape,ns.svg,'y'))||0,width:lengthPoints(attr(shape,ns.svg,'width'))||model.width,height:lengthPoints(attr(shape,ns.svg,'height'))||model.height}
+    const bounds:Box={x:lengthPoints(attr(shape,ns.svg,'x'))||0,y:lengthPoints(attr(shape,ns.svg,'y'))||0,width:lengthPoints(attr(shape,ns.svg,'width'))||model.width,height:lengthPoints(attr(shape,ns.svg,'height'))||model.height}
+    if(shape.localName==='line'){const x1=lengthPoints(attr(shape,ns.svg,'x1'))||0,y1=lengthPoints(attr(shape,ns.svg,'y1'))||0,x2=lengthPoints(attr(shape,ns.svg,'x2'))||0,y2=lengthPoints(attr(shape,ns.svg,'y2'))||0;Object.assign(bounds,{x:Math.min(x1,x2),y:Math.min(y1,y2),width:Math.abs(x2-x1),height:Math.abs(y2-y1),flipV:(x2<x1)!==(y2<y1)})}
     if(attr(shape,ns.draw,'transform'))warn('ODP-Transformationen werden vereinfacht.')
     const image=child(shape,ns.draw,'image'),textBox=child(shape,ns.draw,'text-box'),table=elements(shape,ns.table,'table')[0]
     if(image){const href=attr(image,ns.xlink,'href'),binary=elements(image,ns.office,'binary-data')[0]?.textContent?.replace(/\s/g,''),bytes=href?entries[localPart('content.xml',href)]:binary?Uint8Array.from(atob(binary),c=>c.charCodeAt(0)):undefined
      slide.shapes.push({...bounds,kind:'image',image:await embeddedImage(bytes,bounds.width,bounds.height,elements(shape,ns.svg,'desc')[0]?.textContent||'')})
-    }else if(table){slide.shapes.push({...bounds,kind:'table',table:{kind:'table',rows:elements(table,ns.table,'table-row').map(tr=>Array.from(tr.children).filter(c=>c.localName==='table-cell').map(tc=>({blocks:paragraphs(tc),span:Number(attr(tc,ns.table,'number-columns-spanned'))||1})))}})
+    }else if(table){slide.shapes.push({...bounds,kind:'table',table:{kind:'table',rows:elements(table,ns.table,'table-row').map(tr=>Array.from(tr.children).filter(c=>c.localName==='table-cell').map(tc=>({blocks:paragraphs(tc),span:positiveCount(attr(tc,ns.table,'number-columns-spanned')),fill:colorValue(attr(child(styles.get(attr(tc,ns.table,'style-name')),ns.style,'table-cell-properties'),ns.fo,'background-color'))})))}})
     }else if(textBox){const properties=child(styles.get(attr(shape,ns.draw,'style-name')),ns.style,'graphic-properties');slide.shapes.push({...bounds,kind:'text',paragraphs:paragraphs(textBox),fill:colorValue(attr(properties,ns.draw,'fill-color'))})}
     else if(['rect','ellipse','line'].includes(shape.localName)){const props=child(styles.get(attr(shape,ns.draw,'style-name')),ns.style,'graphic-properties');slide.shapes.push({...bounds,kind:'shape',shape:shape.localName as 'rect',fill:colorValue(attr(props,ns.draw,'fill-color')),line:colorValue(attr(props,ns.svg,'stroke-color'))})}
     else if(!['notes'].includes(shape.localName))warn('Nicht unterstützte ODP-Objekte werden ausgelassen.')
@@ -112,7 +113,7 @@ export async function readRichPresentation(file:File,options:ConversionOptions={
  }
  if(!model.slides.length)throw Error('Keine lesbaren Folien vorhanden')
  if(model.width<100||model.height<100||model.width>3000||model.height>3000)throw Error('Folienformat außerhalb unterstützter Grenzen')
- for(const slide of model.slides)for(const shape of slide.shapes)if(![shape.x,shape.y,shape.width,shape.height].every(Number.isFinite)||shape.width<=0||shape.height<=0)throw Error('Ungültige Folienobjekt-Abmessungen')
+ for(const slide of model.slides)for(const shape of slide.shapes){const line=shape.kind==='shape'&&shape.shape==='line';if(![shape.x,shape.y,shape.width,shape.height,shape.rotation||0].every(Number.isFinite)||shape.width<0||shape.height<0||(!line&&(!shape.width||!shape.height))||(line&&!shape.width&&!shape.height))throw Error('Ungültige Folienobjekt-Abmessungen');if(shape.kind==='table')boundedTableRows(shape.table.rows)}
  warn('Schriftfamilien, Master-Elemente, Animationen und komplexe Layoutdetails können abweichen.')
  return model
 }
@@ -120,7 +121,7 @@ export async function presentationPptx(model:RichPresentation,options:Conversion
  const deck=new pptxgen();deck.defineLayout({name:'SOURCE',width:model.width/72,height:model.height/72});deck.layout='SOURCE'
  for(const [index,source] of model.slides.entries()){
   checkpoint(options,50+index/model.slides.length*40,'PPTX-Folie schreiben');const slide=deck.addSlide();if(source.background)slide.background={color:source.background}
-  for(const shape of source.shapes){const bounds={x:shape.x/72,y:shape.y/72,w:shape.width/72,h:shape.height/72,rotate:shape.rotation||0}
+  for(const shape of source.shapes){const bounds={x:shape.x/72,y:shape.y/72,w:shape.width/72,h:shape.height/72,rotate:shape.rotation||0,flipV:shape.flipV}
    if(shape.kind==='image')slide.addImage({...bounds,data:dataUri(shape.image),altText:shape.image.alt})
    else if(shape.kind==='text'){
     const runs: pptxgen.TextProps[]=[]
@@ -128,7 +129,7 @@ export async function presentationPptx(model:RichPresentation,options:Conversion
     slide.addText(runs,{...bounds,margin:0,valign:'top',fontSize:18,...(shape.fill?{fill:{color:shape.fill}}:{})})
    }else if(shape.kind==='shape')slide.addShape(shape.shape==='ellipse'?deck.ShapeType.ellipse:shape.shape==='line'?deck.ShapeType.line:deck.ShapeType.rect,{...bounds,fill:{color:shape.fill||'FFFFFF',transparency:shape.fill?0:100},line:{color:shape.line||shape.fill||'000000',transparency:shape.line?0:100}})
    else{
-    const rows=shape.table.rows.map(row=>row.map(cell=>({text:cell.blocks.filter(b=>b.kind==='paragraph').map(p=>p.runs.map(r=>r.text).join('')).join('\n'),options:{colSpan:cell.span,fill:cell.fill?{color:cell.fill}:undefined}})))
+    const rows=shape.table.rows.map(row=>row.map(cell=>({text:cell.blocks.filter(b=>b.kind==='paragraph').flatMap((p,i)=>p.runs.map((r,j)=>({text:r.text,options:{bold:r.bold,italic:r.italic,color:r.color,fontSize:r.size||12,breakLine:i>0&&j===0}}))),options:{colSpan:cell.span,fill:cell.fill?{color:cell.fill}:undefined}})))
     slide.addTable(rows,{...bounds,fontSize:12,margin:0.05,border:{type:'solid',pt:0.5,color:'888888'}})
    }
   }
@@ -145,11 +146,12 @@ export function presentationOdp(model:RichPresentation):Result{
  const pages=model.slides.map((slide,index)=>{
   const pageStyle='D'+(++id);styles.push(`<style:style style:name="${pageStyle}" style:family="drawing-page"><style:drawing-page-properties${slide.background?' draw:fill="solid" draw:fill-color="#'+slide.background+'"':''}/></style:style>`)
   const objects=slide.shapes.map(shape=>{
+   if(shape.rotation)model.warnings.push('Rotationen werden im ODP-Export vereinfacht.')
    const box=`svg:x="${shape.x}pt" svg:y="${shape.y}pt" svg:width="${shape.width}pt" svg:height="${shape.height}pt"`,key='G'+(++id)
    if(shape.kind==='image'){const path='Pictures/image-'+(++imageId)+'.png';entries[path]=shape.image.data;images.push(`<manifest:file-entry manifest:full-path="${path}" manifest:media-type="image/png"/>`);return `<draw:frame draw:name="Image${imageId}" ${box}><svg:desc>${xmlEscape(shape.image.alt)}</svg:desc><draw:image xlink:href="${path}" xlink:type="simple" xlink:show="embed" xlink:actuate="onLoad"/></draw:frame>`}
    if(shape.kind==='text'){styles.push(`<style:style style:name="${key}" style:family="graphic"><style:graphic-properties${shape.fill?' draw:fill="solid" draw:fill-color="#'+shape.fill+'"':''}/></style:style>`);return `<draw:frame draw:name="Text${id}" draw:style-name="${key}" ${box}><draw:text-box>${shape.paragraphs.map(paragraph).join('')}</draw:text-box></draw:frame>`}
-   if(shape.kind==='shape'){styles.push(`<style:style style:name="${key}" style:family="graphic"><style:graphic-properties draw:fill="${shape.fill?'solid':'none'}"${shape.fill?' draw:fill-color="#'+shape.fill+'"':''}${shape.line?' draw:stroke="solid" svg:stroke-color="#'+shape.line+'"':' draw:stroke="none"'}/></style:style>`);return `<draw:${shape.shape} draw:name="Shape${id}" draw:style-name="${key}" ${box}/>`}
-   return `<draw:frame draw:name="Table${id}" ${box}><table:table table:name="Table${id}">${shape.table.rows.map(row=>'<table:table-row>'+row.map(cell=>`<table:table-cell${(cell.span||1)>1?' table:number-columns-spanned="'+cell.span+'"':''}>${cell.blocks.filter(b=>b.kind==='paragraph').map(paragraph).join('')}</table:table-cell>`+'<table:covered-table-cell/>'.repeat((cell.span||1)-1)).join('')+'</table:table-row>').join('')}</table:table></draw:frame>`
+   if(shape.kind==='shape'){styles.push(`<style:style style:name="${key}" style:family="graphic"><style:graphic-properties draw:fill="${shape.fill?'solid':'none'}"${shape.fill?' draw:fill-color="#'+shape.fill+'"':''}${shape.line?' draw:stroke="solid" svg:stroke-color="#'+shape.line+'"':' draw:stroke="none"'}/></style:style>`);return `<draw:${shape.shape} draw:name="Shape${id}" draw:style-name="${key}" ${shape.shape==='line'?`svg:x1="${shape.x}pt" svg:y1="${shape.y+(shape.flipV?shape.height:0)}pt" svg:x2="${shape.x+shape.width}pt" svg:y2="${shape.y+(shape.flipV?0:shape.height)}pt"`:box}/>`}
+   return `<draw:frame draw:name="Table${id}" ${box}><table:table table:name="Table${id}">${shape.table.rows.map(row=>'<table:table-row>'+row.map(cell=>{const key='C'+(++id);styles.push(`<style:style style:name="${key}" style:family="table-cell"><style:table-cell-properties fo:border="0.5pt solid #888888"${cell.fill?' fo:background-color="#'+cell.fill+'"':''}/></style:style>`);return `<table:table-cell table:style-name="${key}"${(cell.span||1)>1?' table:number-columns-spanned="'+cell.span+'"':''}>${cell.blocks.filter(b=>b.kind==='paragraph').map(paragraph).join('')}</table:table-cell>`+'<table:covered-table-cell/>'.repeat((cell.span||1)-1)}).join('')+'</table:table-row>').join('')}</table:table></draw:frame>`
   }).join('')
   return `<draw:page draw:name="Slide ${index+1}" draw:style-name="${pageStyle}" draw:master-page-name="Default">${objects}</draw:page>`
  }).join('')
@@ -166,11 +168,11 @@ export async function presentationPdf(model:RichPresentation,options:ConversionO
   checkpoint(options,50+index/model.slides.length*40,'Folien-PDF lokal setzen');const page=pdf.addPage([model.width,model.height])
   if(slide.background)page.drawRectangle({x:0,y:0,width:model.width,height:model.height,color:color(slide.background)})
   for(const shape of slide.shapes){const y=model.height-shape.y-shape.height
-   if(shape.rotation)model.warnings.push('Rotationen von Text/Formen im Folien-PDF werden vereinfacht.')
+   if(shape.rotation)model.warnings.push('Rotationen im Folien-PDF werden vereinfacht.')
    if(shape.kind==='image')page.drawImage(await pdf.embedPng(shape.image.data),{x:shape.x,y,width:shape.width,height:shape.height})
    else if(shape.kind==='shape'){
     if(shape.shape==='ellipse')page.drawEllipse({x:shape.x+shape.width/2,y:y+shape.height/2,xScale:shape.width/2,yScale:shape.height/2,...(shape.fill?{color:color(shape.fill)}:{}),...(shape.line?{borderColor:color(shape.line),borderWidth:1}:{})})
-    else if(shape.shape==='line')page.drawLine({start:{x:shape.x,y:y+shape.height},end:{x:shape.x+shape.width,y},thickness:1,color:color(shape.line||'000000')})
+    else if(shape.shape==='line')page.drawLine({start:{x:shape.x,y:y+(shape.flipV?0:shape.height)},end:{x:shape.x+shape.width,y:y+(shape.flipV?shape.height:0)},thickness:1,color:color(shape.line||'000000')})
     else page.drawRectangle({x:shape.x,y,width:shape.width,height:shape.height,...(shape.fill?{color:color(shape.fill)}:{}),...(shape.line?{borderColor:color(shape.line),borderWidth:1}:{})})
    }else{
     if(shape.kind==='text'&&shape.fill)page.drawRectangle({x:shape.x,y,width:shape.width,height:shape.height,color:color(shape.fill)})
@@ -203,6 +205,7 @@ export async function presentationConvert(file:File,to:string,options:Conversion
     const position=`position:absolute;left:${s.x}px;top:${s.y}px;width:${s.width}px;height:${s.height}px;overflow:hidden;`
     if(s.kind==='image')return `<img src="${dataUri(s.image)}" style="${position}" alt="${xmlEscape(s.image.alt)}">`
     if(s.kind==='text')return `<div style="${position}${s.fill?'background:#'+s.fill+';':''}">${s.paragraphs.map(p=>`<p style="margin:0;text-align:${p.align||'left'}">${p.runs.map(r=>`<span style="font-size:${r.size||18}px;${r.bold?'font-weight:bold;':''}${r.italic?'font-style:italic;':''}${r.underline?'text-decoration:underline;':''}color:#${r.color||'000000'}">${xmlEscape(r.text).replace(/\n/g,'<br>')}</span>`).join('')}</p>`).join('')}</div>`
+    if(s.kind==='shape'&&s.shape==='line')return `<svg style="position:absolute;left:${s.x}px;top:${s.y}px;width:${Math.max(s.width,1)}px;height:${Math.max(s.height,1)}px;overflow:visible" viewBox="0 0 ${Math.max(s.width,1)} ${Math.max(s.height,1)}"><line x1="0" y1="${s.flipV?s.height:0}" x2="${s.width}" y2="${s.flipV?0:s.height}" stroke="#${s.line||'000000'}"/></svg>`
     if(s.kind==='shape')return `<div style="${position}background:${s.fill?'#'+s.fill:'transparent'};${s.shape==='ellipse'?'border-radius:50%;':''}${s.line?'border:1px solid #'+s.line+';':''}"></div>`
     return `<table style="${position}border-collapse:collapse">${s.table.rows.map(row=>'<tr>'+row.map(c=>`<td colspan="${c.span||1}" style="border:1px solid #888">${c.blocks.filter(b=>b.kind==='paragraph').map(p=>xmlEscape(p.runs.map(r=>r.text).join(''))).join('<br>')}</td>`).join('')+'</tr>').join('')}</table>`
    }).join('')}</section>`).join('\n')

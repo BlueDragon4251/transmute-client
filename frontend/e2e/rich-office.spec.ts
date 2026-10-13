@@ -29,11 +29,11 @@ test('DOCX -> ODT -> DOCX retains styled runs, headings, cells and embedded imag
 })
 test('Office PDF retains real images, fonts, tables, selectable text and page breaks',async({page})=>{
  const bytes=await fixture(),out=await convert(page,bytes,'rich.docx','pdf'),pdf=await PDFDocument.load(new Uint8Array(out.bytes))
- expect(pdf.getPageCount()).toBeGreaterThanOrEqual(2)
+ expect(pdf.getPageCount()).toBeGreaterThanOrEqual(3)
  const imageObjects=pdf.context.enumerateIndirectObjects().filter(([,v])=>v.toString().includes('/Subtype /Image'))
  expect(imageObjects.length).toBeGreaterThan(0)
  const extracted=await convert(page,new Uint8Array(out.bytes),'rich.pdf','txt'),text=new TextDecoder().decode(new Uint8Array(extracted.bytes))
- expect(text).toContain(marker);expect(text).toContain('Bold red');expect(text).toContain('Table A');expect(text).toContain('After page break')
+ expect(text).toContain(marker);expect(text).toContain('Bold red');expect(text).toContain('Table A');expect(text).toContain('After page break');expect(text).toContain('Before internal page break');expect(text).toContain('After internal page break')
  // Render with independent PDF.js as well; attach page PNG for visual review.
  const rendered=await convert(page,new Uint8Array(out.bytes),'rich.pdf','pdf-png'),images=unzipSync(new Uint8Array(rendered.bytes))
  for(const [name,image] of Object.entries(images))await test.info().attach(name,{body:Buffer.from(image),contentType:'image/png'})
@@ -49,14 +49,27 @@ test('PPTX -> ODP -> PPTX retains slide dimensions, positions, runs, images and 
  const {default:PptxGenJS}=await import('pptxgenjs'),deck=new PptxGenJS();deck.layout='LAYOUT_WIDE';const slide=deck.addSlide();slide.background={color:'F1EEDD'}
  slide.addText([{text:marker,options:{bold:true,color:'CC1122',fontSize:28}},{text:' italic',options:{italic:true,fontSize:20}}],{x:0.5,y:0.4,w:6,h:0.8,margin:0})
  slide.addImage({data:'data:image/png;base64,'+png.toString('base64'),x:8,y:1,w:2,h:1})
+ slide.addShape(deck.ShapeType.line,{x:0.5,y:1.7,w:5,h:0,line:{color:'CC1122',width:2}})
  slide.addShape(deck.ShapeType.ellipse,{x:0.7,y:2,w:2,h:1,fill:{color:'2266AA'}})
  slide.addTable([['Cell A','Cell B'],['Value A','Value B']],{x:4,y:3,w:5,h:1,fontSize:14})
  const bytes=new Uint8Array(await deck.write({outputType:'arraybuffer'}) as ArrayBuffer),odp=await convert(page,bytes,'rich.pptx','odp'),entries=unzipSync(new Uint8Array(odp.bytes)),content=new TextDecoder().decode(entries['content.xml'])
- expect(content).toContain('svg:x="36pt"');expect(content).toContain('svg:y="28.8pt"');expect(content).toContain('fo:font-weight="bold"');expect(content).toContain('draw:image');expect(content).toContain('draw:ellipse');expect(content).toContain('Cell A')
+ expect(content).toContain('svg:x="36pt"');expect(content).toContain('svg:y="28.8pt"');expect(content).toContain('fo:font-weight="bold"');expect(content).toContain('draw:image');expect(content).toContain('draw:ellipse');expect(content).toContain('Cell A');expect(content).toContain('<draw:line');expect(content).toMatch(/svg:y1="122\.4[^"]*pt"|svg:y1="122\.399[^"]*pt"/)
  const back=await convert(page,new Uint8Array(odp.bytes),'rich.odp','pptx'),pptx=unzipSync(new Uint8Array(back.bytes)),xml=new TextDecoder().decode(pptx['ppt/slides/slide1.xml'])
  expect(xml).toContain(marker);expect(xml).toContain('CC1122');expect(xml).toContain('b="1"');expect(xml).toContain('p:pic');expect(xml).toContain('a:tbl');expect(Object.keys(pptx).some(n=>n.startsWith('ppt/media/'))).toBe(true)
  const pdf=await convert(page,bytes,'rich.pptx','pdf'),read=await PDFDocument.load(new Uint8Array(pdf.bytes))
  expect(read.getPageCount()).toBe(1);expect(read.getPage(0).getWidth()).toBeCloseTo(960,0)
  const text=await convert(page,new Uint8Array(pdf.bytes),'slide.pdf','txt');expect(new TextDecoder().decode(new Uint8Array(text.bytes))).toContain(marker)
  const rendered=await convert(page,new Uint8Array(pdf.bytes),'slide.pdf','pdf-png'),images=unzipSync(new Uint8Array(rendered.bytes));await test.info().attach('slide.png',{body:Buffer.from(images['page-1.png']),contentType:'image/png'})
+})
+
+test('spreadsheet PDF paginates all sheets and wide columns with displayed numeric values',async({page})=>{
+ const XLSX=await import('xlsx'),book=XLSX.utils.book_new(),rows=Array.from({length:90},(_,r)=>Array.from({length:10},(_,c)=>r===89&&c===9?'LAST_WIDE_CELL':`R${r+1}C${c+1}`)),sheet=XLSX.utils.aoa_to_sheet(rows)
+ sheet.B2={t:'n',v:1234.5,z:'#,##0.00'};sheet.C2={t:'n',f:'1000+234.5',v:1234.5,z:'#,##0.00'};sheet.D2={t:'n',f:'1+1'}
+ XLSX.utils.book_append_sheet(book,sheet,'WideSheet');XLSX.utils.book_append_sheet(book,XLSX.utils.aoa_to_sheet([['SECOND_SHEET_MARKER','value']]),'SecondSheet')
+ const bytes=new Uint8Array(XLSX.write(book,{type:'array',bookType:'xlsx'})),out=await convert(page,bytes,'grid.xlsx','pdf'),pdf=await PDFDocument.load(new Uint8Array(out.bytes))
+ expect(pdf.getPageCount()).toBeGreaterThanOrEqual(5);expect(pdf.getPage(0).getWidth()).toBeGreaterThan(pdf.getPage(0).getHeight())
+ const txt=await convert(page,new Uint8Array(out.bytes),'grid.pdf','txt'),text=new TextDecoder().decode(new Uint8Array(txt.bytes))
+ expect(text).toContain('WideSheet');expect(text).toContain('1,234.50');expect(text).toContain('LAST_WIDE_CELL');expect(text).toContain('SECOND_SHEET_MARKER');expect(out.warnings.join(' ')).toContain('Formeln werden nicht neu berechnet')
+ const rendered=await convert(page,new Uint8Array(out.bytes),'grid.pdf','pdf-png'),images=unzipSync(new Uint8Array(rendered.bytes))
+ await test.info().attach('spreadsheet-first-page.png',{body:Buffer.from(images['page-1.png']),contentType:'image/png'})
 })

@@ -86,3 +86,14 @@ export function dataUri(image: EmbeddedImage): string {
   let text='';for(let i=0;i<image.data.length;i+=8192)text+=String.fromCharCode(...image.data.subarray(i,i+8192))
   return 'data:image/png;base64,'+btoa(text)
 }
+
+export function positiveCount(value:string,limit=100):number {
+  if(!value)return 1
+  const count=Number(value)
+  if(!Number.isSafeInteger(count)||count<1||count>limit)throw Error('Office-Wiederholung/Zellspanne außerhalb unterstützter Grenzen')
+  return count
+}
+export function boundedTableRows(rows:TableCellModel[][]):void {
+  if(rows.length>10000 || rows.reduce((total,row)=>total+row.length,0)>50000)throw Error('Office-Tabelle überschreitet 10000 Zeilen / 50000 Zellen')
+  if(rows.some(row=>row.reduce((total,cell)=>total+positiveCount(String(cell.span||1)),0)>256))throw Error('Office-Tabelle überschreitet 256 Spalten')
+}

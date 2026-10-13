@@ -23,7 +23,7 @@ in [DEPLOY_CLIENT_ONLY.md](DEPLOY_CLIENT_ONLY.md).
 | Area | Browser functionality |
 |---|---|
 | Office documents / slides | DOCX/ODT formatting, headings, raster images and tables; PPTX/ODP positioned text/images/basic shapes/tables; TXT/HTML/PDF export |
-| Spreadsheets | XLSX/ODS/XLS data conversion, multiple sheets, supported formulas, CSV/TSV/JSON/HTML/text/PDF report |
+| Spreadsheets | XLSX/ODS/XLS data conversion, multiple sheets, supported formulas, CSV/TSV/JSON/HTML/text and paginated PDF grids |
 | PDF | Create from text/images, merge, extract/reorder, split, rotate, render PNG/JPEG, extract text layer |
 | Video / audio | Local FFmpeg-WASM MP4/WebM/MKV/GIF and MP3/WAV/FLAC/OGG/M4A/Opus |
 | 3D meshes | STL/OBJ/PLY/embedded GLTF/GLB |

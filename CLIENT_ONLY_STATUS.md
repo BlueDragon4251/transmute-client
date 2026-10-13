@@ -1,6 +1,6 @@
 # Client-only implementation
 
-Real browser engines now cover Office structured document/slide conversion (formatting, raster images and tables), spreadsheet data,
+Real browser engines now cover Office structured document/slide conversion (formatting, raster images and tables), spreadsheet data and paginated PDF cell grids,
 PDF editing/rendering/text, FFmpeg audio/video, raster images, triangle meshes,
 static fonts, structured data and ZIP/TAR/GZIP. See `CLIENT_FORMAT_MATRIX.md`
 for exact fidelity, unsupported features and resource limits.

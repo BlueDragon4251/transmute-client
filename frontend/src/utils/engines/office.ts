@@ -69,14 +69,14 @@ export async function officeConvert(file: File, to: string, options: ConversionO
   if (sheetInputs.includes(from) || ['csv', 'tsv'].includes(from) && ['xlsx', 'ods', 'xls', 'html', 'pdf'].includes(to)) {
     const source = new Uint8Array(await file.arrayBuffer())
     if (source[0] === 80 && source[1] === 75) readZip(source) // bound ZIP expansion before SheetJS parses it
-    const workbook = XLSX.read(source, { type: 'array', cellDates: true, WTF: false })
+    const workbook = XLSX.read(source, { type: 'array', cellDates: true, cellNF: true, cellStyles: true, WTF: false })
     if (!workbook.SheetNames.length) throw Error('Keine Tabellenblätter vorhanden')
     if (to === 'xls' && Object.values(workbook.Sheets).some(sheet => Object.entries(sheet).some(([key, cell]) => !key.startsWith('!') && cell && cell.f))) throw Error('XLS-Ausgabe kann Formeln nicht erhalten. XLSX oder ODS auswählen.')
     if (['xlsx', 'ods', 'xls'].includes(to)) return result(XLSX.write(workbook, { bookType: to as XLSX.BookType, type: 'array', compression: true }) as ArrayBuffer, to)
+    if (to === 'pdf') return (await import('./spreadsheetPdf')).spreadsheetPdf(workbook,options)
     const sheets = workbook.SheetNames.map(name => ({ name, rows: XLSX.utils.sheet_to_json(workbook.Sheets[name], { header: 1, defval: '' }) as unknown[][] }))
     if (to === 'json') return result(JSON.stringify(sheets, null, 2), 'json', 'application/json')
     if (to === 'html') return result('<!doctype html><meta charset="utf-8">' + sheets.map(s => `<h2>${xmlEscape(s.name)}</h2><table>${s.rows.map(r => '<tr>' + r.map(v => `<td>${xmlEscape(String(v))}</td>`).join('') + '</tr>').join('')}</table>`).join(''), 'html', 'text/html')
-    if (to === 'pdf') return textPdf(sheets.map(s => s.name + '\n' + s.rows.map(r => r.join(' | ')).join('\n')).join('\n\n'), options)
     return result(to === 'txt' ? sheets.map(s => s.name + '\n' + s.rows.map(r => r.join('\t')).join('\n')).join('\n\n') : XLSX.utils.sheet_to_csv(workbook.Sheets[workbook.SheetNames[0]], { FS: to === 'tsv' ? '\t' : ',' }), to, 'text/plain;charset=utf-8')
   }
   if (slideInputs.includes(from)) return (await import('./presentation')).presentationConvert(file,to,options)

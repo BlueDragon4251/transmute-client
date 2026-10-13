@@ -9,16 +9,17 @@ type Line={parts:Segment[];width:number;height:number}
 const sourceFonts=new Map<FontKey,Promise<ArrayBuffer>>()
 export async function richDocumentPdf(model:RichDocument,options:ConversionOptions={}):Promise<Result> {
   const pdf=await PDFDocument.create();pdf.registerFontkit(fontkit)
-  const fonts=new Map<FontKey,PDFFont>(),supported=new Map<FontKey,Set<number>>()
+  const fonts=new Map<FontKey,Promise<PDFFont>>(),supported=new Map<FontKey,Set<number>>()
   async function font(style:TextPiece):Promise<PDFFont>{
     const key:FontKey=style.bold?'bold':'regular'
     if(!fonts.has(key)){
       let source=sourceFonts.get(key)
       if(!source){source=fetch(asset('fonts/'+files[key])).then(r=>{if(!r.ok)throw Error('Lokale PDF-Schrift fehlt');return r.arrayBuffer()}).catch(e=>{sourceFonts.delete(key);throw e});sourceFonts.set(key,source)}
-      const embedded=await pdf.embedFont(await source,{subset:true});fonts.set(key,embedded);supported.set(key,new Set(embedded.getCharacterSet()))
+      const embedding=source.then(bytes=>pdf.embedFont(bytes,{subset:true})).then(embedded=>{supported.set(key,new Set(embedded.getCharacterSet()));return embedded});fonts.set(key,embedding)
     }
+    const embedded=await fonts.get(key)!
     for(const c of style.text)if(!/[\r\n\t]/.test(c)&&!supported.get(key)!.has(c.codePointAt(0)!))throw Error('Zeichen nicht in der lokalen PDF-Schrift vorhanden')
-    return fonts.get(key)!
+    return embedded
   }
   async function lines(runs:TextPiece[],width:number,defaultSize=11):Promise<Line[]>{
     const out:Line[]=[];let line:Line={parts:[],width:0,height:defaultSize*1.4}
@@ -52,7 +53,7 @@ export async function richDocumentPdf(model:RichDocument,options:ConversionOptio
       if(block.kind==='paragraph'){
         if(block.pageBreak && y<model.height-model.margin)newPage()
         const formatted=await lines(block.runs,width,block.heading?[24,20,17,15,13,12][block.heading-1]:11)
-        for(const line of formatted){if(y-line.height<model.margin)newPage();drawLine(line,model.margin,y,width,block.align);y-=line.height}
+        for(const line of formatted){if(line.height>usable)throw Error('Text größer als die PDF-Seite');if(y-line.height<model.margin)newPage();drawLine(line,model.margin,y,width,block.align);y-=line.height}
         y-=6
       }else if(block.kind==='image'){
         const image=await pdf.embedPng(block.data),scale=Math.min(1,width/block.width,usable/block.height),w=block.width*scale,h=block.height*scale
@@ -60,9 +61,14 @@ export async function richDocumentPdf(model:RichDocument,options:ConversionOptio
       }else{
         const columns=Math.max(...block.rows.map(row=>row.reduce((n,c)=>n+(c.span||1),0))),columnWidth=width/columns
         for(const row of block.rows){
+          type CellItem={kind:'line';line:Line;align?:string;height:number}|{kind:'image';image:Awaited<ReturnType<typeof pdf.embedPng>>;width:number;height:number}
           const cells=await Promise.all(row.map(async cell=>{
-            if(cell.blocks.some(b=>b.kind!=='paragraph'))throw Error('PDF-Tabellen mit eingebetteten Bildern/Untertabellen derzeit nicht unterstützt')
-            const formatted:Line[]=[];for(const p of cell.blocks)if(p.kind==='paragraph')formatted.push(...await lines(p.runs,columnWidth*(cell.span||1)-10,p.heading?16:10))
+            const formatted:CellItem[]=[],cellWidth=columnWidth*(cell.span||1)-10
+            for(const block of cell.blocks){
+              if(block.kind==='table')throw Error('Verschachtelte PDF-Tabellen derzeit nicht unterstützt')
+              if(block.kind==='paragraph')for(const line of await lines(block.runs,cellWidth,block.heading?16:10))formatted.push({kind:'line',line,align:block.align,height:line.height})
+              else {const image=await pdf.embedPng(block.data),scale=Math.min(1,cellWidth/block.width,(usable-14)/block.height);formatted.push({kind:'image',image,width:block.width*scale,height:block.height*scale+4})}
+            }
             return {cell,formatted}
           }))
           let offset=0
@@ -81,7 +87,7 @@ export async function richDocumentPdf(model:RichDocument,options:ConversionOptio
             let x=model.margin
             for(const {cell,formatted} of cells){const w=columnWidth*(cell.span||1)
               page.drawRectangle({x,y:y-height,width:w,height,borderWidth:0.5,borderColor:rgb(0.5,0.5,0.5),...(cell.fill?{color:color(cell.fill)}:{})})
-              let top=y-5;for(const line of formatted.slice(offset,offset+count)){drawLine(line,x+5,top,w-10);top-=line.height}x+=w
+              let top=y-5;for(const item of formatted.slice(offset,offset+count)){if(item.kind==='line')drawLine(item.line,x+5,top,w-10,item.align);else page.drawImage(item.image,{x:x+5,y:top-item.height+4,width:item.width,height:item.height-4});top-=item.height}x+=w
             }
             y-=height;offset+=count
             if(cells.some(c=>offset<c.formatted.length))newPage()

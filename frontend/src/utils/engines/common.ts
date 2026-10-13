@@ -18,5 +18,8 @@ export function parseXml(source: string): Document {
   if (/<!DOCTYPE|<!ENTITY/i.test(source)) throw Error('XML mit DTD/Entities wird abgelehnt')
   const doc = new DOMParser().parseFromString(source, 'application/xml')
   if (doc.getElementsByTagName('parsererror').length) throw Error('Ungültiges XML')
+  const stack:Array<{element:Element;depth:number}>=[{element:doc.documentElement,depth:1}]
+  let count=0
+  while(stack.length){const {element,depth}=stack.pop()!;if(++count>200000||depth>128)throw Error('XML-Struktur überschreitet 200000 Elemente / 128 Ebenen');for(const child of Array.from(element.children))stack.push({element:child,depth:depth+1})}
   return doc
 }
