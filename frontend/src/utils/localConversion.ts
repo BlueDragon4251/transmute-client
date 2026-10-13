@@ -1,5 +1,5 @@
 /** Entirely local conversions. No fetch, XMLHttpRequest, or server fallback. */
-export type LocalFormat = 'png'|'jpeg'|'webp'|'bmp'|'ico'|'svg'|'txt'|'json'|'csv'|'tsv'|'html'|'xml'|'md'|'yaml'|'yml'|'pdf'|'zip'
+export type LocalFormat = 'png'|'jpeg'|'webp'|'bmp'|'ico'|'svg'|'txt'|'json'|'csv'|'tsv'|'html'|'xml'|'md'|'yaml'|'yml'|'pdf'|'zip'|'wav'
 export type Output = { blob: Blob; extension: string }
 const textTypes = new Set(['txt','json','csv','tsv','html','xml','md','yaml','yml'])
 const imageTypes = new Set(['png','jpeg','webp','bmp','ico','svg'])
@@ -11,6 +11,7 @@ export const formatsFor = (file:File):LocalFormat[] => {
   if (imageTypes.has(e) || file.type.startsWith('image/')) return ['png','jpeg','webp','bmp','ico']
   if (e==='json'||e==='csv'||e==='tsv') return ['txt','json','csv','tsv']
   if (textTypes.has(e)) return ['txt', e as LocalFormat]
+  if (['wav','mp3','m4a','aac','ogg','flac','opus','webm'].includes(e) && (file.type.startsWith('audio/') || ['wav','mp3','m4a','aac','ogg','flac','opus'].includes(e))) return ['wav']
   if (e==='pdf') return ['pdf']
   return []
 }
@@ -87,10 +88,41 @@ async function imageOutput(file:File,to:LocalFormat):Promise<Output> {
     return {blob:result,extension:to==='jpeg'?'jpg':to}
   } finally {bitmap.close()}
 }
+
+async function audioToWav(file:File):Promise<Output> {
+  const AudioContextClass = window.AudioContext
+  if (!AudioContextClass) throw Error('Web Audio API in diesem Browser nicht verfügbar')
+  const context = new AudioContextClass()
+  try {
+    const audio = await context.decodeAudioData(await file.arrayBuffer())
+    const channels = Math.min(audio.numberOfChannels, 2)
+    const sampleRate = audio.sampleRate
+    const length = audio.length
+    const dataBytes = length * channels * 2
+    if (dataBytes > 0xFFFFFFFF - 44) throw Error('Audio zu groß für klassisches WAV')
+    const buffer = new ArrayBuffer(44+dataBytes)
+    const v = new DataView(buffer)
+    const write = (offset:number,value:string) => {for(let i=0;i<value.length;i++)v.setUint8(offset+i,value.charCodeAt(i))}
+    write(0,'RIFF');v.setUint32(4,36+dataBytes,true);write(8,'WAVE');write(12,'fmt ')
+    v.setUint32(16,16,true);v.setUint16(20,1,true);v.setUint16(22,channels,true)
+    v.setUint32(24,sampleRate,true);v.setUint32(28,sampleRate*channels*2,true)
+    v.setUint16(32,channels*2,true);v.setUint16(34,16,true)
+    write(36,'data');v.setUint32(40,dataBytes,true)
+    const samples=Array.from({length:channels},(_,i)=>audio.getChannelData(i))
+    let offset=44
+    for(let i=0;i<length;i++)for(let c=0;c<channels;c++){
+      const value=Math.max(-1,Math.min(1,samples[c][i]))
+      v.setInt16(offset,value<0?value*32768:value*32767,true);offset+=2
+    }
+    return {blob:new Blob([buffer],{type:'audio/wav'}),extension:'wav'}
+  } finally {await context.close()}
+}
+
 export async function convertLocal(file:File,to:LocalFormat):Promise<Output> {
   const from=ext(file.name)
   if(!formatsFor(file).includes(to))throw Error('Dieses Formatpaar ist nicht lokal unterstützt')
   if(imageTypes.has(from)||file.type.startsWith('image/'))return imageOutput(file,to)
+  if(to==='wav') return audioToWav(file)
   if(from==='pdf'){
     if(to==='pdf')return {blob:file,extension:'pdf'}
     throw Error('PDF-Transformation benötigt eine gesonderte lokale Engine')
