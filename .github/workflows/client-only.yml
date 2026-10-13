@@ -12,6 +12,10 @@ on:
       - 'requirements-client-only.txt'
       - 'backend/tests/test_client_only_boundary.py'
       - '.github/workflows/client-only.yml'
+      - 'README.md'
+      - 'CLIENT*.md'
+      - 'DEPLOY_CLIENT_ONLY.md'
+      - 'THIRD_PARTY_ENGINES.md'
 jobs:
   frontend:
     runs-on: ubuntu-latest

@@ -90,7 +90,9 @@ async function imageOutput(file:File,to:LocalFormat):Promise<Output> {
     if(to==='ico'){
       const small=document.createElement('canvas');small.width=small.height=256
       const c=small.getContext('2d');if(!c)throw Error('Canvas nicht verfügbar')
-      c.drawImage(canvas,0,0,256,256)
+      const scale = Math.min(256 / canvas.width, 256 / canvas.height)
+      const width = canvas.width * scale, height = canvas.height * scale
+      c.drawImage(canvas,(256-width)/2,(256-height)/2,width,height)
       const png=await new Promise<Blob>((resolve,reject)=>small.toBlob(x=>x?resolve(x):reject(Error('PNG-Encoder fehlgeschlagen')),'image/png'))
       const bytes=new Uint8Array(await png.arrayBuffer()),buf=new Uint8Array(22+bytes.length),v=new DataView(buf.buffer)
       v.setUint16(2,1,true);v.setUint16(4,1,true);v.setUint16(10,1,true);v.setUint16(12,32,true);v.setUint32(14,bytes.length,true);v.setUint32(18,22,true);buf.set(bytes,22)

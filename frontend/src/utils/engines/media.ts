@@ -3,7 +3,7 @@ import { asset, checkpoint, extension, result, type ConversionOptions, type Resu
 import { audioOutputs } from './capabilities'
 const codecs: Record<string, string[]> = {
   mp4: ['-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23', '-pix_fmt', 'yuv420p', '-vf', 'pad=ceil(iw/2)*2:ceil(ih/2)*2', '-c:a', 'aac', '-movflags', '+faststart'],
-  mkv: ['-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23', '-c:a', 'aac'],
+  mkv: ['-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23', '-pix_fmt', 'yuv420p', '-vf', 'pad=ceil(iw/2)*2:ceil(ih/2)*2', '-c:a', 'aac'],
   webm: ['-c:v', 'libvpx', '-deadline', 'realtime', '-cpu-used', '8', '-b:v', '1M', '-c:a', 'libopus'],
   gif: ['-an', '-vf', 'fps=12,scale=640:-1:flags=lanczos', '-loop', '0'],
   mp3: ['-vn', '-c:a', 'libmp3lame', '-q:a', '2'], wav: ['-vn', '-c:a', 'pcm_s16le'],

@@ -18,3 +18,11 @@ describe('local archive formats', () => {
     expect(bytes.slice(-1024).every(n => n===0)).toBe(true)
   })
 })
+
+it('disambiguates duplicate archive names without dropping content',async()=>{
+ const {readZip}=await import('./engines/archives')
+ const archive=await zipFiles([new File(['first'],'same.txt'),new File(['second'],'same.txt')])
+ const entries=readZip(new Uint8Array(await archive.arrayBuffer()))
+ expect(Object.keys(entries)).toHaveLength(2)
+ expect(Object.values(entries).map(b=>new TextDecoder().decode(b))).toEqual(['first','second'])
+})
