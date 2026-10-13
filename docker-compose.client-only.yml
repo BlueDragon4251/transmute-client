@@ -17,7 +17,7 @@ services:
     cap_drop:
       - ALL
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:3313/api/health/ready"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:3313/api/health/ready', timeout=5).close()"]
       interval: 30s
       timeout: 10s
       retries: 3
