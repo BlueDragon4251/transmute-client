@@ -67,3 +67,51 @@ def test_auth_multipart_denied():
         b"content-type": b"multipart/form-data; boundary=x",
     }))
     assert status == 403 and not calls
+
+
+def test_disallow_unknown_nested_account_and_settings_paths():
+    for path in ("/api/users/me/upload", "/api/settings/upload",
+                 "/api/settings/themes/a/import", "/api/guest/upload",
+                 "/api/files", "/api/conversions", "/api/default-formats/import"):
+        status, calls = asyncio.run(invoke(path, headers={
+            b"content-type": b"application/json",
+        }, chunks=(b'{"data":"file contents"}',)))
+        assert status == 403 and not calls, path
+
+
+def test_disallow_method_tunneling_and_media_types():
+    for headers in (
+        {b"content-type": b"application/octet-stream"},
+        {b"content-type": b"multipart/mixed; boundary=x"},
+        {b"content-type": b"image/png"},
+        {b"content-length": b"-1"},
+    ):
+        status, calls = asyncio.run(invoke("/api/users/me", method="PATCH",
+                                          headers=headers, chunks=(b"secret",)))
+        assert status == 403 and not calls
+
+
+def test_auth_stream_without_declared_length_is_limited():
+    status, calls = asyncio.run(invoke("/api/users/token", headers={
+        b"content-type": b"application/x-www-form-urlencoded",
+    }, chunks=(b"x" * 80000, b"x" * 80000)))
+    assert status == 403 and not calls
+
+
+def test_websocket_cannot_bypass_policy():
+    async def downstream(scope, receive, send):
+        raise AssertionError("WebSocket reached application")
+    sent = []
+    async def send(message):
+        sent.append(message)
+    async def receive():
+        raise AssertionError("Should not read WebSocket messages")
+    asyncio.run(ClientOnlyBoundary(downstream)(
+        {"type": "websocket", "path": "/api/users/me"}, receive, send))
+    assert sent == [{"type": "websocket.close", "code": 1008}]
+
+
+def test_allowed_preference_route():
+    status, calls = asyncio.run(invoke("/api/default-formats", method="PUT",
+        headers={b"content-type": b"application/json"}, chunks=(b'{"x":"png"}',)))
+    assert status == 204 and calls == ["reached"]
