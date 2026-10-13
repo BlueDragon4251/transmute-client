@@ -112,7 +112,7 @@ docker compose -f docker-compose.client-only.yml logs --tail 50
 
 Use local fixtures first. Review `CLIENT_FORMAT_MATRIX.md` before relying on
 formatting: Word/Impress/PowerPoint retain supported formatting/images/tables, with warnings for unsupported layout features, and
-spreadsheet PDF is a text report. Browser results are downloadable links; no
+spreadsheet PDFs are paginated cell grids with displayed values and column bands for wide sheets. Cached formula values are exported without recalculation. Browser results are downloadable links; no
 automatic upload, server processing, filename log or conversion history occurs.
 
 The CI Docker job builds/boots the image, places Caddy in front of it, runs the
