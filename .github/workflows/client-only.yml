@@ -48,6 +48,7 @@ jobs:
         run: docker build -f docker/Dockerfile.client-only -t transmute-client:ci .
       - name: Boot image and probe APIs
         run: |
+          trap 'docker logs transmute-ci || true' EXIT
           docker run -d --name transmute-ci -p 127.0.0.1:3313:3313 transmute-client:ci
           for i in $(seq 1 40); do
             if curl -fsS http://127.0.0.1:3313/api/health/live; then break; fi
@@ -56,4 +57,3 @@ jobs:
           curl -fsS http://127.0.0.1:3313/api/health/ready
           test "$(curl -s -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:3313/api/files/upload)" = 403
           test "$(curl -s -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:3313/api/jobs)" = 403
-          docker logs transmute-ci
