@@ -32,6 +32,7 @@ _ALLOWED = {
     ),
     "PUT": (
         r"/api/settings/themes/[a-zA-Z0-9_-]{1,80}",
+        r"/api/default-(?:formats|qualities|compression-levels)",
         r"/api/default-(?:formats|qualities|compression-levels)/[a-zA-Z0-9_-]{1,80}",
     ),
     "DELETE": (
