@@ -17,6 +17,16 @@ describe('local conversion contract', () => {
     const output = await convertLocal(f, 'json')
     expect(JSON.parse(await output.blob.text())).toEqual([{name:'Ada', comment:'hello, world'}])
   })
+  it('does not label PDF pass-through as conversion', async () => {
+    const f = new File(['%PDF-1.7'], 'contract.pdf', { type: 'application/pdf' })
+    expect(formatsFor(f)).toEqual([])
+    await expect(convertLocal(f, 'pdf')).rejects.toThrow()
+  })
+  it('does not advertise copying text as conversion', async () => {
+    const f = new File(['hello'], 'note.txt', { type: 'text/plain' })
+    expect(formatsFor(f)).not.toContain('txt')
+    await expect(convertLocal(f, 'txt')).rejects.toThrow()
+  })
   it('rejects unsupported conversion pairs', async () => {
     const f = new File(['binary'], 'office.docx')
     await expect(convertLocal(f, 'png')).rejects.toThrow()
