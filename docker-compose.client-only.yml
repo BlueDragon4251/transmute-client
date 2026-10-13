@@ -3,7 +3,7 @@ services:
   transmute-client:
     build:
       context: .
-      dockerfile: docker/Dockerfile
+      dockerfile: docker/Dockerfile.client-only
     restart: unless-stopped
     ports:
       - "127.0.0.1:3313:3313"
