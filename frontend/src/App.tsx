@@ -2,19 +2,16 @@ import { lazy, Suspense, type ReactNode, useEffect } from 'react'
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { AuthProvider, useAuth } from './AuthContext'
-import { ThemeProvider, useTheme } from './ThemeContext'
+import { ThemeProvider } from './ThemeContext'
 import Header from './components/Header'
 import Footer from './components/Footer'
 import { api } from './utils/api'
 
 const Account = lazy(() => import('./pages/Account'))
 const Auth = lazy(() => import('./pages/Auth'))
-const Converter = lazy(() => import('./pages/Converter'))
-const History = lazy(() => import('./pages/History'))
-const Files = lazy(() => import('./pages/Files'))
+const Converter = lazy(() => import('./pages/LocalConverter'))
 const Settings = lazy(() => import('./pages/Settings'))
 const Users = lazy(() => import('./pages/Users'))
-const Stats = lazy(() => import('./pages/Stats'))
 const NotFound = lazy(() => import('./pages/NotFound'))
 
 function RouteTitle() {
@@ -92,7 +89,6 @@ function RejectGuest({ children }: { children: ReactNode }) {
 }
 
 function AppRoutes() {
-  const { keepOriginals } = useTheme()
   const { status } = useAuth()
 
   return (
@@ -104,16 +100,16 @@ function AppRoutes() {
           path="/files"
           element={
             <RequireAuth>
-              {keepOriginals ? <Files /> : <Navigate to="/" replace />}
+              <Navigate to="/" replace />
             </RequireAuth>
           }
         />
         <Route path="/queue" element={<Navigate to="/history" replace />} />
-        <Route path="/history" element={<RequireAuth><History /></RequireAuth>} />
+        <Route path="/history" element={<Navigate to="/" replace />} />
         <Route path="/settings" element={<RequireAuth><RejectGuest><Settings /></RejectGuest></RequireAuth>} />
         <Route path="/account" element={<RequireAuth><RejectGuest><Account /></RejectGuest></RequireAuth>} />
         <Route path="/admin/users" element={<RequireAuth><RequireAdmin><Users /></RequireAdmin></RequireAuth>} />
-        <Route path="/admin/stats" element={<RequireAuth><RequireAdmin><Stats /></RequireAdmin></RequireAuth>} />
+        <Route path="/admin/stats" element={<Navigate to="/" replace />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </Suspense>
