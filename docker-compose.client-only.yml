@@ -6,7 +6,7 @@ services:
       dockerfile: docker/Dockerfile.client-only
     restart: unless-stopped
     ports:
-      - "127.0.0.1:3313:3313"
+      - "127.0.0.1:9040:3313"
     environment:
       ALLOW_UNAUTHENTICATED: "false"
       ORT_DISABLE_TELEMETRY: "1"
