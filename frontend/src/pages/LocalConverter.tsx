@@ -64,7 +64,7 @@ export default function LocalConverter() {
       <section className="rounded-2xl border border-surface-dark bg-surface-light/50 p-6 shadow-lg">
         <label htmlFor="local-files" className="block cursor-pointer rounded-xl border-2 border-dashed border-primary/50 p-12 text-center hover:bg-surface-dark/40">
           <span className="block text-lg font-semibold">Dateien lokal auswählen</span>
-          <span className="mt-2 block text-sm text-text-muted">Bilder (PNG, JPEG, WebP, GIF, BMP, AVIF, ICO), Textdaten (JSON, CSV, TSV, TXT, HTML, XML, Markdown) und PDF (Kopie)</span>
+          <span className="mt-2 block text-sm text-text-muted">Bilder (PNG, JPEG, WebP, GIF, BMP, AVIF, ICO), Textdaten (JSON, CSV, TSV, TXT, HTML, XML, Markdown)</span>
         </label>
         <input id="local-files" type="file" multiple className="sr-only" onChange={e => {
           setFiles(Array.from(e.target.files ?? []));setDone(0);setFailed([]);setError('')
@@ -94,7 +94,7 @@ export default function LocalConverter() {
       </section>
       <p className="mt-5 text-sm text-text-muted">
         Bildexport ist auf Einzelbilder beschränkt. Browser-Unterstützung hängt vom jeweiligen Encoder ab.
-        CSV/TSV/JSON werden strukturiert konvertiert. Andere Textdateien und PDFs können nur lokal kopiert werden.
+        CSV/TSV/JSON werden strukturiert konvertiert. PDF- und Office-Konvertierung wird derzeit nicht angeboten.
         Nicht unterstützte Formate werden niemals zum Server gesendet.
       </p>
     </div>
