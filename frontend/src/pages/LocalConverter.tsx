@@ -88,7 +88,7 @@ export default function LocalConverter() {
           <button type="button" disabled={!files.length || busy} onClick={() => makeArchive("tar")} className="rounded-lg border border-primary px-4 py-2 text-primary disabled:opacity-50">Lokal TAR erstellen</button>
         </div>
         <p className="mt-4 text-sm text-text-muted" role="status" aria-live="polite">{files.length} Datei(en) ausgewählt · {done} bearbeitet · {failed.length} fehlgeschlagen</p>
-        <progress className="mt-2 w-full accent-primary" max={Math.max(files.length, 1)} value={done} aria-label="Batch-Fortschritt" />
+        <progress className="mt-2 w-full accent-primary" max={Math.max(files.length, 1)} value={done} aria-label={t("localConverter.batchProgress", "Batch progress")} />
         {failed.length > 0 && <div role="alert" className="mt-4 text-red-400"><p className="font-semibold">Fehler bei {failed.length} Dateien:</p><ul className="list-disc pl-5">{failed.map((message, index) => <li key={index}>{message}</li>)}</ul></div>}
         {error && <p role="alert" className="mt-4 text-red-400">{error}</p>}
       </section>
