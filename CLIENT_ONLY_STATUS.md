@@ -6,7 +6,7 @@ This fork's design goal is to leave employee files on the employee workstation. 
 - Original auth/admin API and pages retained.
 - `backend/client_only_boundary.py` denies server file routes, server conversions, compression, and jobs before multipart bodies are parsed.
 - `frontend/src/pages/LocalConverter.tsx` does **not** call backend APIs for file content.
-- Local converters implement browser-based raster export (PNG, JPEG, WebP, BMP, ICO) and CSV/TSV/JSON transforms with input validated and no network calls. Other recognized text and PDF files can only be copied, not converted.
+- Local audio decode to PCM WAV uses Web Audio (codec input depends on browser). Local converters implement browser-based raster export (PNG, JPEG, WebP, BMP, ICO) and CSV/TSV/JSON transforms with input validated and no network calls. Other recognized text and PDF files can only be copied, not converted.
 - Browser decoding of image formats varies. GIF animation is not preserved; ICO export is a single 256×256 PNG-backed icon.
 - Multiple independent employee sessions remain available via upstream account management.
 
