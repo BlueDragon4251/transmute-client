@@ -115,3 +115,19 @@ def test_allowed_preference_route():
     status, calls = asyncio.run(invoke("/api/default-formats", method="PUT",
         headers={b"content-type": b"application/json"}, chunks=(b'{"x":"png"}',)))
     assert status == 204 and calls == ["reached"]
+
+
+def test_legacy_route_modules_not_registered():
+    """Static check: no accidentally registered legacy router, even if middleware changes."""
+    import ast
+    from pathlib import Path
+    api_init = Path(__file__).resolve().parents[1] / "api" / "__init__.py"
+    tree = ast.parse(api_init.read_text(encoding="utf-8"))
+    forbidden = {"files", "conversions", "converters", "jobs", "compressions",
+                 "compressors", "compression_jobs", "stats"}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.module == "routes":
+            assert not forbidden.intersection(alias.name for alias in node.names)
+    source = api_init.read_text(encoding="utf-8")
+    for name in forbidden:
+        assert f"{name}.router" not in source
