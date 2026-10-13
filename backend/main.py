@@ -68,7 +68,8 @@ def create_app() -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        # Client-only: no server-side conversion, compression or upload workers.\n        yield
+        # Client-only: no server-side conversion, compression or upload workers.
+        yield
 
     app = FastAPI(
         title=f"{settings.app_name} API",
