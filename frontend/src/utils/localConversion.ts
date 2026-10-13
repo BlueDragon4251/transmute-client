@@ -9,7 +9,8 @@ const blob = (value:string, format:string):Output => ({blob:new Blob([value],{ty
 export const formatsFor = (file:File):LocalFormat[] => {
   const e=ext(file.name)
   if (imageTypes.has(e) || file.type.startsWith('image/')) return ['png','jpeg','webp','bmp','ico']
-  if (textTypes.has(e)) return ['txt','json','csv','tsv','html','xml','md','yaml','yml']
+  if (e==='json'||e==='csv'||e==='tsv') return ['txt','json','csv','tsv']
+  if (textTypes.has(e)) return ['txt', e as LocalFormat]
   if (e==='pdf') return ['pdf']
   return []
 }
