@@ -42,14 +42,14 @@ def test_server_job_denied():
 
 
 def test_chunked_body_limit():
-    status, calls = asyncio.run(invoke("/api/users/login", headers={
+    status, calls = asyncio.run(invoke("/api/users/token", headers={
         b"content-type": b"application/json",
     }, chunks=(b"x" * 65536, b"x" * 65536, b"x")))
     assert status == 403 and not calls
 
 
 def test_small_account_request_remains_possible():
-    status, calls = asyncio.run(invoke("/api/users/login", headers={
+    status, calls = asyncio.run(invoke("/api/users/token", headers={
         b"content-type": b"application/json",
     }, chunks=(json.dumps({"username": "test", "password": "test"}).encode(),)))
     assert status == 204 and calls == ["reached"]
@@ -63,7 +63,7 @@ def test_unknown_api_route_denied():
 
 
 def test_auth_multipart_denied():
-    status, calls = asyncio.run(invoke("/api/users/login", headers={
+    status, calls = asyncio.run(invoke("/api/users/token", headers={
         b"content-type": b"multipart/form-data; boundary=x",
     }))
     assert status == 403 and not calls
