@@ -1,5 +1,5 @@
 /** Entirely local conversions. No fetch, XMLHttpRequest, or server fallback. */
-export type LocalFormat = 'png'|'jpeg'|'webp'|'bmp'|'ico'|'svg'|'txt'|'json'|'csv'|'tsv'|'html'|'xml'|'md'|'yaml'|'yml'|'pdf'|'zip'|'wav'|'gz'|'webm'|'txt'
+export type LocalFormat = 'png'|'jpeg'|'webp'|'bmp'|'ico'|'svg'|'txt'|'json'|'csv'|'tsv'|'html'|'xml'|'md'|'yaml'|'yml'|'pdf'|'zip'|'wav'|'gz'|'webm'
 export type Output = { blob: Blob; extension: string }
 const textTypes = new Set(['txt','json','csv','tsv','html','xml','md','yaml','yml'])
 const imageTypes = new Set(['png','jpeg','webp','bmp','ico','svg'])
@@ -10,13 +10,12 @@ export const formatsFor = (file:File):LocalFormat[] => {
   const e=ext(file.name)
   if (e === 'jpg' || e === 'jfif') return ['png','jpeg','webp','bmp','ico']
   if (imageTypes.has(e) || file.type.startsWith('image/')) return ['png','jpeg','webp','bmp','ico']
-  if (e==='json'||e==='csv'||e==='tsv') return ['txt','json','csv','tsv']
+  if (e==='json'||e==='csv'||e==='tsv') return ['txt','json','csv','tsv','gz']
   if (textTypes.has(e)) return ['txt', 'gz', e as LocalFormat]
   if (['wav','mp3','m4a','aac','ogg','flac','opus','webm'].includes(e) && (file.type.startsWith('audio/') || ['wav','mp3','m4a','aac','ogg','flac','opus'].includes(e))) return ['wav']
   if (e === 'gz') return ['txt']
   // Video is not listed until a validated local transcoder is integrated.
   if (e==='pdf') return ['pdf']
-  if (textTypes.has(e)) return ['txt', 'gz']
   return []
 }
 const csvEscape = (s:string, sep:string) => /["\r\n]/.test(s)||s.includes(sep) ? '"'+s.replace(/"/g,'""')+'"' : s
@@ -135,7 +134,7 @@ async function unzipGzip(file:File):Promise<Output> {
   const result=await new Response(stream).blob()
   return {blob:new Blob([result],{type:'text/plain'}),extension:'txt'}
 }
-async function videoWebm(_file:File):Promise<Output> {
+async function videoWebm():Promise<Output> {
   if (!('MediaRecorder' in window))throw Error('MediaRecorder nicht verfügbar')
   // This first pass intentionally refuses video transcoding until audio-preserving
   // muxing, lifetime and codec negotiation have been implemented.
@@ -147,7 +146,7 @@ export async function convertLocal(file:File,to:LocalFormat):Promise<Output> {
   if(!formatsFor(file).includes(to))throw Error('Dieses Formatpaar ist nicht lokal unterstützt')
   if(imageTypes.has(from)||from==='jpg'||from==='jfif'||file.type.startsWith('image/'))return imageOutput(file,to)
   if(to==='wav') return audioToWav(file)
-  if(to==='webm')return videoWebm(file)
+  if(to==='webm')return videoWebm()
   if(to==='gz')return gzipText(file)
   if(from==='gz' && to==='txt')return unzipGzip(file)
   if(from==='pdf'){
