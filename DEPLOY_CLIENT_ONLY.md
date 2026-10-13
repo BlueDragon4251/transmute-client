@@ -21,7 +21,7 @@ git checkout agent/client-only-conversion
 docker compose -f docker-compose.client-only.yml config --quiet
 docker compose -f docker-compose.client-only.yml up --build -d
 docker compose -f docker-compose.client-only.yml ps
-Invoke-WebRequest http://127.0.0.1:3313/api/health/ready
+Invoke-WebRequest http://127.0.0.1:9040/api/health/ready
 ```
 
 For upgrades: `git pull --ff-only` and then `docker compose -f
@@ -40,7 +40,7 @@ handle @transmute {
     request_body {
         max_size 128KB
     }
-    reverse_proxy host.docker.internal:3313
+    reverse_proxy host.docker.internal:9040
 }
 ```
 
@@ -53,7 +53,7 @@ is not reachable from other LAN machines outside the reverse proxy.
 For production use, enable TLS at Caddy with a certificate trusted on every
 workstation, and restrict ingress to the internal network. Check that
 `host.docker.internal` resolves from your Caddy container. If Caddy runs
-natively on the host instead, use `reverse_proxy 127.0.0.1:3313`.
+natively on the host instead, use `reverse_proxy 127.0.0.1:9040`.
 
 **Do not enable the above global 128KB limit for static SPA assets**: they
 can be much larger than that; this example restricts only request bodies.
@@ -70,10 +70,10 @@ are meant to stay on the user's workstation.
 
 ```powershell
 # Must answer with 403; no file bytes uploaded.
-curl.exe -i -X POST http://127.0.0.1:3313/api/files/upload
-curl.exe -i -X POST http://127.0.0.1:3313/api/jobs
+curl.exe -i -X POST http://127.0.0.1:9040/api/files/upload
+curl.exe -i -X POST http://127.0.0.1:9040/api/jobs
 # Must answer with successful JSON when server is ready.
-curl.exe -i http://127.0.0.1:3313/api/health/ready
+curl.exe -i http://127.0.0.1:9040/api/health/ready
 docker compose -f docker-compose.client-only.yml logs --tail 100
 ```
 
