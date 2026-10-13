@@ -15,13 +15,6 @@ from api import router
 from client_only_boundary import ClientOnlyBoundary
 from api.routes.oidc import attach_session_middleware
 from core import build_logging_config, configure_logging, get_settings
-from background import (
-    get_conversion_worker_manager_thread,
-    get_compression_worker_manager_thread,
-    get_upload_cleanup_thread,
-    recover_running_jobs,
-    recover_compression_jobs,
-)
 import uvicorn
 
 logger = logging.getLogger(__name__)
@@ -75,21 +68,7 @@ def create_app() -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        # Mark any jobs that were `running` when the previous process died
-        # as stale so they can be retried from scratch.
-        recover_running_jobs()
-        recover_compression_jobs()
-        # Start the conversion queue manager (daemon thread). It lazily starts
-        # worker threads only when queued jobs exist, up to the configured
-        # concurrency limit.
-        worker_manager = get_conversion_worker_manager_thread()
-        worker_manager.start()
-        # Start the compression queue manager (daemon thread) with the same
-        # lazy worker-spawning behavior.
-        compression_worker_manager = get_compression_worker_manager_thread()
-        compression_worker_manager.start()
-        yield
-        # Daemon threads exit with the process; nothing to clean up here.
+        # Client-only: no server-side conversion, compression or upload workers.\n        yield
 
     app = FastAPI(
         title=f"{settings.app_name} API",
@@ -186,6 +165,4 @@ def run_api_server(app: FastAPI, settings) -> None:
 if __name__ == "__main__":
     settings = get_settings()
     app = create_app()
-    cleanup_thread = get_upload_cleanup_thread()
-    cleanup_thread.start()
     run_api_server(app, settings)
