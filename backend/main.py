@@ -12,6 +12,7 @@ from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.openapi.utils import get_openapi
 from textwrap import dedent
 from api import router
+from client_only_boundary import ClientOnlyBoundary
 from api.routes.oidc import attach_session_middleware
 from core import build_logging_config, configure_logging, get_settings
 from background import (
@@ -135,6 +136,9 @@ def create_app() -> FastAPI:
         return app.openapi_schema
 
     app.openapi = custom_openapi
+
+    # Deny file and server-conversion API calls before request body parsing.
+    app.add_middleware(ClientOnlyBoundary)
 
     # Session middleware is needed for the OIDC authorization round-trip
     attach_session_middleware(app)
