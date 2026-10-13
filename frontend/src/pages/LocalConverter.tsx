@@ -10,6 +10,7 @@ export default function LocalConverter() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [done, setDone] = useState(0)
+  const [failed, setFailed] = useState<string[]>([])
   const urls = useRef<string[]>([])
   useEffect(() => () => { urls.current.forEach(URL.revokeObjectURL) }, [])
   const available = files.length ? files.map(formatsFor).reduce((a,b) => a.filter(f=>b.includes(f))) : []
@@ -30,17 +31,23 @@ export default function LocalConverter() {
 
   async function run() {
     if (!selected) return
-    setBusy(true); setError(''); setDone(0)
+    setBusy(true); setError(''); setDone(0); setFailed([])
     try {
       for (const file of files) {
-        const output = await convertLocal(file, selected)
-        const url = URL.createObjectURL(output.blob)
-        urls.current.push(url)
-        const link = document.createElement('a')
-        link.href = url
-        link.download = file.name.replace(/\.[^.]+$/, '') + '.' + output.extension
-        document.body.appendChild(link);link.click();link.remove()
-        setDone(count => count + 1)
+        try {
+          const output = await convertLocal(file, selected)
+          const url = URL.createObjectURL(output.blob)
+          urls.current.push(url)
+          const link = document.createElement('a')
+          link.href = url
+          link.download = file.name.replace(/\.[^.]+$/, '') + '.' + output.extension
+          document.body.appendChild(link);link.click();link.remove()
+        } catch (e) {
+          const message = e instanceof Error ? e.message : 'Unbekannter Fehler'
+          setFailed(previous => [...previous, file.name + ': ' + message])
+        } finally {
+          setDone(count => count + 1)
+        }
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Konvertierung fehlgeschlagen')
@@ -60,7 +67,7 @@ export default function LocalConverter() {
           <span className="mt-2 block text-sm text-text-muted">Bilder (PNG, JPEG, WebP, GIF, BMP, AVIF, ICO), Textdaten (JSON, CSV, TSV, TXT, HTML, XML, Markdown) und PDF (Kopie)</span>
         </label>
         <input id="local-files" type="file" multiple className="sr-only" onChange={e => {
-          setFiles(Array.from(e.target.files ?? []));setDone(0);setError('')
+          setFiles(Array.from(e.target.files ?? []));setDone(0);setFailed([]);setError('')
         }} />
         <div className="mt-6 flex flex-wrap items-end gap-4">
           <div className="flex-1">
@@ -80,7 +87,9 @@ export default function LocalConverter() {
           <button type="button" disabled={!files.length || busy} onClick={() => makeArchive("zip")} className="rounded-lg border border-primary px-4 py-2 text-primary disabled:opacity-50">Lokal ZIP erstellen</button>
           <button type="button" disabled={!files.length || busy} onClick={() => makeArchive("tar")} className="rounded-lg border border-primary px-4 py-2 text-primary disabled:opacity-50">Lokal TAR erstellen</button>
         </div>
-        <p className="mt-4 text-sm text-text-muted">{files.length} Datei(en) ausgewählt · {done} verarbeitet</p>
+        <p className="mt-4 text-sm text-text-muted" role="status" aria-live="polite">{files.length} Datei(en) ausgewählt · {done} bearbeitet · {failed.length} fehlgeschlagen</p>
+        <progress className="mt-2 w-full accent-primary" max={Math.max(files.length, 1)} value={done} aria-label="Batch-Fortschritt" />
+        {failed.length > 0 && <div role="alert" className="mt-4 text-red-400"><p className="font-semibold">Fehler bei {failed.length} Dateien:</p><ul className="list-disc pl-5">{failed.map((message, index) => <li key={index}>{message}</li>)}</ul></div>}
         {error && <p role="alert" className="mt-4 text-red-400">{error}</p>}
       </section>
       <p className="mt-5 text-sm text-text-muted">
