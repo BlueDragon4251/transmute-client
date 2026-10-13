@@ -30,11 +30,12 @@ No server-side fallback is allowed.
   carry file contents or document metadata; payload-level auditing is still needed.
 - Need reproducible browser E2E tests proving zero requests with file bytes,
   including network capture at the reverse proxy and negative API cases.
-- Legacy Python converter packages remain in the repository/image, but the API
-  no longer registers file, job or conversion routers and middleware also rejects
-  access; removing the heavy runtime remains outstanding.
-- The Docker image is based on the large legacy converter runtime and needs a
-  successful build on CI before being considered deployable.
+- Legacy converter packages remain in the repository, but the dedicated
+  Dockerfile.client-only installs only account/settings dependencies. No file,
+  job or conversion router is registered; middleware also rejects their paths.
+  The minimal image must still pass runtime smoke tests.
+- The new minimal rootless Docker image requires a successful boot, health,
+  negative API and reverse-proxy integration test before deployment.
 - Existing database/volume contents are not migrated or securely erased.
 - Browser codec and WASM engine coverage is nowhere near maximal yet.
 
