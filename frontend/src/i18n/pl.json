@@ -383,5 +383,10 @@
     "sourceCode": "Kod źródłowy",
     "apiDocs": "Dokumentacja API",
     "website": "Witryna Transmute"
+  },
+  "localConverter": {
+    "pages": "PDF pages",
+    "pageExample": "1-3,5",
+    "rotation": "PDF rotation"
   }
 }

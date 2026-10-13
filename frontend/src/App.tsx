@@ -10,7 +10,7 @@ import { api } from './utils/api'
 const Account = lazy(() => import('./pages/Account'))
 const Auth = lazy(() => import('./pages/Auth'))
 const Converter = lazy(() => import('./pages/LocalConverter'))
-const Settings = lazy(() => import('./pages/Settings'))
+const Settings = lazy(() => import('./pages/ClientSettings'))
 const Users = lazy(() => import('./pages/Users'))
 const NotFound = lazy(() => import('./pages/NotFound'))
 

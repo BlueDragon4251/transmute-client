@@ -1,24 +1,30 @@
-import { plainTextPdf, meshConvert } from './localExtras'
+import { checkpoint, type ConversionOptions } from './engines/common'
+import { documentInputs, sheetInputs, slideInputs, audioInputs, videoInputs, audioOutputs, videoOutputs } from './engines/capabilities'
 /** Entirely local conversions. No fetch, XMLHttpRequest, or server fallback. */
-export type LocalFormat = 'png'|'jpeg'|'webp'|'bmp'|'ico'|'svg'|'txt'|'json'|'csv'|'tsv'|'html'|'xml'|'md'|'yaml'|'yml'|'pdf'|'zip'|'wav'|'gz'|'webm'|'obj'|'stl'
+export type LocalFormat = 'png'|'jpeg'|'webp'|'bmp'|'ico'|'txt'|'json'|'csv'|'tsv'|'html'|'xml'|'md'|'yaml'|'yml'|'pdf'|'zip'|'tar'|'wav'|'gz'|'gunzip'|'webm'|'mp4'|'mkv'|'gif'|'mp3'|'flac'|'ogg'|'m4a'|'opus'|'obj'|'stl'|'ply'|'gltf'|'glb'|'ttf'|'woff'|'woff2'|'docx'|'odt'|'xlsx'|'ods'|'xls'|'pptx'|'odp'|'pdf-extract'|'pdf-split'|'pdf-rotate'|'pdf-png'|'pdf-jpeg'
 export type Output = { blob: Blob; extension: string }
 const textTypes = new Set(['txt','json','csv','tsv','html','xml','md','yaml','yml'])
 const imageTypes = new Set(['png','jpeg','webp','bmp','ico','svg'])
 const ext = (s:string) => s.split('.').pop()?.toLowerCase() || ''
 const mime: Record<string,string> = {png:'image/png',jpeg:'image/jpeg',webp:'image/webp',svg:'image/svg+xml',txt:'text/plain',html:'text/html',xml:'application/xml',json:'application/json',csv:'text/csv',tsv:'text/tab-separated-values',md:'text/markdown',pdf:'application/pdf',zip:'application/zip'}
 const blob = (value:string, format:string):Output => ({blob:new Blob([value],{type:mime[format]||'text/plain'}),extension:format})
-export const formatsFor = (file:File):LocalFormat[] => {
-  const e=ext(file.name)
-  if (e === 'jpg' || e === 'jfif') return ['png','jpeg','webp','bmp','ico']
-  if (imageTypes.has(e) || file.type.startsWith('image/')) return ['png','jpeg','webp','bmp','ico']
-  if (e==='json'||e==='csv'||e==='tsv') return (['txt','json','csv','tsv','gz'] as LocalFormat[]).filter(to => to !== e)
-  if (textTypes.has(e)) return e === 'txt' ? ['gz','pdf'] : ['txt', 'gz', 'pdf']
-  if (['wav','mp3','m4a','aac','ogg','flac','opus','webm'].includes(e) && (file.type.startsWith('audio/') || ['wav','mp3','m4a','aac','ogg','flac','opus'].includes(e))) return ['wav']
-  if (e === 'gz') return ['txt']
-  if (e === 'stl') return ['obj']
-  if (e === 'obj') return ['stl']
-  // Video is not listed until a validated local transcoder is integrated.
-  return []
+export const formatsFor = (file: File): LocalFormat[] => {
+  const e = ext(file.name)
+  let formats: string[] = []
+  if (e === 'pdf') formats = ['txt','pdf-png','pdf-jpeg','pdf-extract','pdf-split','pdf-rotate']
+  else if (documentInputs.includes(e)) formats = ['docx','odt','txt','html','pdf']
+  else if (sheetInputs.includes(e)) formats = ['xlsx','ods','xls','csv','tsv','json','txt','html','pdf']
+  else if (slideInputs.includes(e)) formats = ['pptx','odp','txt','html','pdf']
+  else if (['stl','obj','ply','gltf','glb'].includes(e)) formats = ['stl','obj','ply','gltf','glb']
+  else if (['ttf','otf','woff','woff2'].includes(e)) formats = ['ttf','woff','woff2']
+  else if (['zip','tar'].includes(e)) formats = e === 'zip' ? ['tar'] : ['zip']
+  else if (e === 'gz') formats = ['gunzip']
+  else if (videoInputs.includes(e)) formats = [...videoOutputs,...audioOutputs]
+  else if (audioInputs.includes(e)) formats = audioOutputs
+  else if (imageTypes.has(e) || ['jpg','jfif','gif','avif'].includes(e) || file.type.startsWith('image/')) formats = ['png','jpeg','webp','bmp','ico','pdf']
+  else if (['json','yaml','yml','xml','csv','tsv'].includes(e)) formats = ['txt','json','yaml','xml','csv','tsv','gz','pdf',...(['csv','tsv'].includes(e) ? ['xlsx','ods','xls','html'] : [])]
+  else if (textTypes.has(e)) formats = ['txt','gz','pdf','docx','odt','pptx','odp']
+  return formats.filter(f => f !== e) as LocalFormat[]
 }
 const csvEscape = (s:string, sep:string) => /["\r\n]/.test(s)||s.includes(sep) ? '"'+s.replace(/"/g,'""')+'"' : s
 function parseDelimited(s:string,sep:string):string[][] {
@@ -35,7 +41,7 @@ function parseDelimited(s:string,sep:string):string[][] {
   return rows
 }
 function toDelimited(rows:unknown[][],sep:string):string {
-  return rows.map(r=>r.map(v=>csvEscape(String(v??''),sep)).join(sep)).join('\r\n')
+  return rows.map(r=>r.map(v=>csvEscape(v && typeof v === 'object' ? JSON.stringify(v) : String(v??''),sep)).join(sep)).join('\r\n')
 }
 function readStructured(s:string,from:string):unknown {
   if(from==='json')return JSON.parse(s)
@@ -43,6 +49,8 @@ function readStructured(s:string,from:string):unknown {
     const rows=parseDelimited(s,from==='csv'?',':'\t')
     if(!rows.length)return []
     const [keys,...entries]=rows
+    if (new Set(keys).size !== keys.length || keys.some(k => !k)) throw Error('CSV benötigt eindeutige, nicht leere Spaltennamen')
+    if (entries.some(row => row.length !== keys.length)) throw Error('CSV-Zeilen haben unterschiedliche Spaltenzahlen')
     return entries.map(row=>Object.fromEntries(keys.map((k,i)=>[k,row[i]??''])))
   }
   throw Error('Dieses Eingabeformat kann nur als Text ausgegeben werden')
@@ -58,9 +66,13 @@ function encodeStructured(data:unknown,to:string):string {
   throw Error('Ziel ist kein strukturiertes Datenformat')
 }
 async function imageOutput(file:File,to:LocalFormat):Promise<Output> {
-  if(to==='svg') throw Error('Bitmap-zu-SVG-Vektorisierung wird nicht unterstützt')
+  if (ext(file.name) === 'svg') {
+    const source = await file.text()
+    if (/<script|<foreignObject|(?:href|src)\s*=\s*["'](?!#|data:)|url\(\s*["']?(?!#)|<!DOCTYPE|<!ENTITY/i.test(source)) throw Error('SVG mit externen Ressourcen/aktivem Inhalt wird abgelehnt')
+  }
   const bitmap=await createImageBitmap(file)
   try {
+    if (bitmap.width * bitmap.height > 40_000_000) throw Error('Bild überschreitet 40 Megapixel')
     const canvas=document.createElement('canvas');canvas.width=bitmap.width;canvas.height=bitmap.height
     const ctx=canvas.getContext('2d');if(!ctx)throw Error('Canvas nicht verfügbar')
     if(to==='jpeg'){ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height)}
@@ -94,68 +106,47 @@ async function imageOutput(file:File,to:LocalFormat):Promise<Output> {
   } finally {bitmap.close()}
 }
 
-async function audioToWav(file:File):Promise<Output> {
-  const AudioContextClass = window.AudioContext
-  if (!AudioContextClass) throw Error('Web Audio API in diesem Browser nicht verfügbar')
-  const context = new AudioContextClass()
+async function gzip(file: File, decompress: boolean): Promise<Output> {
+  const stream = file.stream().pipeThrough(decompress ? new DecompressionStream('gzip') : new CompressionStream('gzip'))
+  const reader = stream.getReader(), chunks: ArrayBuffer[] = []
+  let size = 0
   try {
-    const audio = await context.decodeAudioData(await file.arrayBuffer())
-    const channels = Math.min(audio.numberOfChannels, 2)
-    const sampleRate = audio.sampleRate
-    const length = audio.length
-    const dataBytes = length * channels * 2
-    if (dataBytes > 0xFFFFFFFF - 44) throw Error('Audio zu groß für klassisches WAV')
-    const buffer = new ArrayBuffer(44+dataBytes)
-    const v = new DataView(buffer)
-    const write = (offset:number,value:string) => {for(let i=0;i<value.length;i++)v.setUint8(offset+i,value.charCodeAt(i))}
-    write(0,'RIFF');v.setUint32(4,36+dataBytes,true);write(8,'WAVE');write(12,'fmt ')
-    v.setUint32(16,16,true);v.setUint16(20,1,true);v.setUint16(22,channels,true)
-    v.setUint32(24,sampleRate,true);v.setUint32(28,sampleRate*channels*2,true)
-    v.setUint16(32,channels*2,true);v.setUint16(34,16,true)
-    write(36,'data');v.setUint32(40,dataBytes,true)
-    const samples=Array.from({length:channels},(_,i)=>audio.getChannelData(i))
-    let offset=44
-    for(let i=0;i<length;i++)for(let c=0;c<channels;c++){
-      const value=Math.max(-1,Math.min(1,samples[c][i]))
-      v.setInt16(offset,value<0?value*32768:value*32767,true);offset+=2
+    while (true) {
+      const { value, done } = await reader.read()
+      if (done) break
+      size += value.length
+      if (size > 256 * 1024 * 1024) throw Error('GZIP überschreitet 256 MiB')
+      chunks.push(value.slice().buffer as ArrayBuffer)
     }
-    return {blob:new Blob([buffer],{type:'audio/wav'}),extension:'wav'}
-  } finally {await context.close()}
+  } finally { await reader.cancel() }
+  return { blob: new Blob(chunks, {type: decompress ? 'application/octet-stream' : 'application/gzip'}), extension: decompress ? ext(file.name.replace(/\.gz$/i, '')) || 'bin' : ext(file.name) + '.gz' }
 }
 
-
-async function gzipText(file:File):Promise<Output> {
-  if (!('CompressionStream' in window))throw Error('GZIP wird in diesem Browser nicht unterstützt')
-  const stream=file.stream().pipeThrough(new CompressionStream('gzip'))
-  const result=await new Response(stream).blob()
-  return {blob:new Blob([result],{type:'application/gzip'}),extension:'gz'}
-}
-async function unzipGzip(file:File):Promise<Output> {
-  if (!('DecompressionStream' in window))throw Error('GZIP-Dekomprimierung nicht unterstützt')
-  const stream=file.stream().pipeThrough(new DecompressionStream('gzip'))
-  const result=await new Response(stream).blob()
-  return {blob:new Blob([result],{type:'text/plain'}),extension:'txt'}
-}
-async function videoWebm():Promise<Output> {
-  if (!('MediaRecorder' in window))throw Error('MediaRecorder nicht verfügbar')
-  // This first pass intentionally refuses video transcoding until audio-preserving
-  // muxing, lifetime and codec negotiation have been implemented.
-  throw Error('Video-Transkodierung ist noch nicht verfügbar; keine Datei wurde hochgeladen')
-}
-
-export async function convertLocal(file:File,to:LocalFormat):Promise<Output> {
-  const from=ext(file.name)
-  if(!formatsFor(file).includes(to))throw Error('Dieses Formatpaar ist nicht lokal unterstützt')
-  if(imageTypes.has(from)||from==='jpg'||from==='jfif'||file.type.startsWith('image/'))return imageOutput(file,to)
-  if(to==='obj'||to==='stl')return meshConvert(file,to)
-  if(to==='pdf')return plainTextPdf(file)
-  if(to==='wav') return audioToWav(file)
-  if(to==='webm')return videoWebm()
-  if(to==='gz')return gzipText(file)
-  if(from==='gz' && to==='txt')return unzipGzip(file)
-  const source=await file.text()
-  if(to==='txt')return blob(source,to)
-  if((from==='csv'||from==='tsv'||from==='json')&&(to==='csv'||to==='tsv'||to==='json'))
-    return blob(encodeStructured(readStructured(source,from),to),to)
-  throw Error('Keine verlustfreie lokale Umwandlung für diese Kombination vorhanden')
+export async function convertLocal(file: File, to: LocalFormat, options: ConversionOptions = {}): Promise<Output> {
+  const from = ext(file.name)
+  if (!formatsFor(file).includes(to)) throw Error('Dieses Formatpaar ist nicht lokal unterstützt')
+  if (file.size > 256 * 1024 * 1024) throw Error('Datei überschreitet 256 MiB Browser-Limit')
+  checkpoint(options, 0, 'Lokal vorbereiten')
+  // Yield before CPU work so the progress state can paint.
+  await new Promise(resolve => setTimeout(resolve, 0))
+  let output: Output
+  if (from === 'pdf') output = await (await import('./engines/pdf')).transformPdf(file, to, options)
+  else if (documentInputs.includes(from) || sheetInputs.includes(from) || slideInputs.includes(from) || ['docx','odt','pptx','odp','xlsx','ods','xls'].includes(to) || from === 'html' && to === 'txt') output = await (await import('./engines/office')).officeConvert(file, to, options)
+  else if (['stl','obj','ply','gltf','glb'].includes(from)) output = await (await import('./engines/mesh')).meshConvertAdvanced(file, to, options)
+  else if (['ttf','otf','woff','woff2'].includes(from)) output = await (await import('./engines/fonts')).fontConvert(file, to as 'ttf'|'woff'|'woff2', options)
+  else if (['zip','tar'].includes(from)) output = await (await import('./engines/archives')).archiveConvert(file, to)
+  else if (audioInputs.includes(from) || videoInputs.includes(from)) output = await (await import('./engines/media')).mediaConvert(file, to, options)
+  else if (to === 'gz' || to === 'gunzip') output = await gzip(file, to === 'gunzip')
+  else if (imageTypes.has(from) || ['jpg','jfif','gif','avif'].includes(from) || file.type.startsWith('image/')) {
+    output = to === 'pdf' ? await (await import('./engines/pdf')).imagesPdf([file], options) : await imageOutput(file, to)
+  } else if (to === 'pdf') output = await (await import('./engines/pdf')).textPdf(await file.text(), options)
+  else if (to === 'txt') output = blob(await file.text(), to)
+  else if (['csv','tsv','json','yaml','yml','xml'].includes(from) && ['csv','tsv','json','yaml','xml'].includes(to)) {
+    const engine = await import('./engines/data')
+    const data = ['csv','tsv'].includes(from) ? readStructured(await file.text(), from) : engine.readData(await file.text(), from)
+    output = blob(['csv','tsv'].includes(to) ? encodeStructured(data, to) : engine.writeData(data, to), to)
+  }
+  else throw Error('Keine lokale Umwandlung für diese Kombination vorhanden')
+  checkpoint(options, 100, 'Fertig')
+  return output
 }

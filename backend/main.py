@@ -13,6 +13,7 @@ from fastapi.openapi.utils import get_openapi
 from textwrap import dedent
 from api import router
 from client_only_boundary import ClientOnlyBoundary
+from client_only_headers import ClientOnlyHeaders
 from api.routes.oidc import attach_session_middleware
 from core import build_logging_config, configure_logging, get_settings
 import uvicorn
@@ -122,6 +123,7 @@ def create_app() -> FastAPI:
 
     # Session middleware is needed for the OIDC authorization round-trip
     attach_session_middleware(app)
+    app.add_middleware(ClientOnlyHeaders)
 
     app.include_router(router, prefix="/api")
     web_dir = settings.web_dir

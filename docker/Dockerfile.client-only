@@ -20,7 +20,7 @@ RUN pip install --no-cache-dir -r requirements-client-only.txt
 COPY backend/ ./backend/
 COPY --from=frontend /src/frontend/dist ./frontend/dist
 COPY --chmod=755 docker/entrypoint.sh /app/entrypoint.sh
-RUN rm -rf /app/backend/tests && mkdir -p /app/data && \
+RUN rm -rf /app/backend/tests /app/backend/converters /app/backend/compressors /app/backend/services && mkdir -p /app/data && \
     useradd --uid 10001 --system --home /app --shell /usr/sbin/nologin transmute && \
     chown -R transmute:transmute /app/data && chmod -R a+rX /app/backend /app/frontend
 USER 10001:10001

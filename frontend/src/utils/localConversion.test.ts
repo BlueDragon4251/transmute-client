@@ -19,7 +19,7 @@ describe('local conversion contract', () => {
   })
   it('does not label PDF pass-through as conversion', async () => {
     const f = new File(['%PDF-1.7'], 'contract.pdf', { type: 'application/pdf' })
-    expect(formatsFor(f)).toEqual([])
+    expect(formatsFor(f)).not.toContain('pdf')
     await expect(convertLocal(f, 'pdf')).rejects.toThrow()
   })
   it('does not advertise copying text as conversion', async () => {

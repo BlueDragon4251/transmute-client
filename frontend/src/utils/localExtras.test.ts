@@ -1,12 +1,12 @@
 import {describe,expect,it} from 'vitest'
 import {plainTextPdf,meshConvert} from './localExtras'
-import {formatsFor,convertLocal} from './localConversion'
+import {formatsFor} from './localConversion'
 
 describe('local offline PDF and CAD transformations',()=>{
   it('generates a structurally valid one-page PDF from TXT',async()=>{
     const f=new File(['Hallo Welt'], 'notes.txt')
     expect(formatsFor(f)).toContain('pdf')
-    const out=await convertLocal(f,'pdf')
+    const out=await plainTextPdf(f)
     const bytes=new Uint8Array(await out.blob.arrayBuffer())
     const result=new TextDecoder('latin1').decode(bytes)
     expect(result).toMatch(/^%PDF-1\.4/)
@@ -22,7 +22,7 @@ describe('local offline PDF and CAD transformations',()=>{
   })
   it('converts ASCII STL triangle to OBJ and back to binary STL',async()=>{
     const stl=new File(['solid x\nfacet normal 0 0 1\nouter loop\nvertex 0 0 0\nvertex 1 0 0\nvertex 0 1 0\nendloop\nendfacet\nendsolid'],'sample.stl')
-    expect(formatsFor(stl)).toEqual(['obj'])
+    expect(formatsFor(stl)).toContain('obj')
     const obj=await meshConvert(stl,'obj')
     expect(await obj.blob.text()).toContain('f 1 2 3')
     const back=await meshConvert(new File([obj.blob],'test.obj'),'stl')

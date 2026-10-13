@@ -6,12 +6,14 @@ schemas: authentication, profiles and settings necessarily transmit user data.
 """
 import json
 import re
+from client_only_payloads import payload_valid
 
-MAX_API_BODY_BYTES = 128 * 1024
+MAX_API_BODY_BYTES = 8192
 # Match the entire route, not just its root. Unknown future endpoints remain off.
 _ALLOWED = {
     "GET": (
         r"/api/health/(?:info|live|ready)",
+        r"/api/users",
         r"/api/users/(?:bootstrap-status|me|[0-9a-fA-F-]{36})",
         r"/api/api-keys(?:/[0-9a-fA-F-]{36})?",
         r"/api/oidc/(?:config|login|callback)",
@@ -70,6 +72,9 @@ class ClientOnlyBoundary:
             await self.app(scope, receive, send)
             return
         if not (path == "/api" or path.startswith("/api/")):
+            if scope.get("method", "GET") not in ("GET", "HEAD"):
+                await deny(send)
+                return
             await self.app(scope, receive, send)
             return
 
@@ -109,11 +114,19 @@ class ClientOnlyBoundary:
                 if not event.get("more_body", False):
                     break
 
+            body = b"".join(event.get("body", b"") for event in events)
+            if not payload_valid(path, method, content_type, body):
+                await deny(send)
+                return
+
             async def replay():
                 if events:
                     return events.pop(0)
                 return await receive()
 
             await self.app(scope, replay, send)
+            return
+        if length or b"transfer-encoding" in headers:
+            await deny(send)
             return
         await self.app(scope, receive, send)

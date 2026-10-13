@@ -37,7 +37,7 @@ export default defineConfig({
             return 'react-vendor'
           }
 
-          return 'vendor'
+          return undefined
         },
       },
     },
@@ -45,5 +45,6 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
+    exclude: ['e2e/**', 'node_modules/**'],
   },
 })

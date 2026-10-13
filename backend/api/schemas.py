@@ -1,6 +1,6 @@
 from typing import Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import ConfigDict, BaseModel, Field
 
 
 class ConversionRequest(BaseModel):
@@ -178,12 +178,13 @@ class AppSettingsResponse(BaseModel):
 
 
 class AppSettingsUpdate(BaseModel):
-    theme: Optional[str] = Field(None, description="Theme key to apply (built-in or custom)", json_schema_extra={"example": "rubedo"})
+    model_config = ConfigDict(extra="forbid")
+    theme: Optional[str] = Field(None, max_length=80, pattern=r"^[a-zA-Z0-9_-]+$", description="Theme key to apply (built-in or custom)", json_schema_extra={"example": "rubedo"})
     auto_download: Optional[bool] = Field(None, description="Auto-download on completion", json_schema_extra={"example": False})
     keep_originals: Optional[bool] = Field(None, description="Keep original files after conversion", json_schema_extra={"example": True})
     cleanup_enabled: Optional[bool] = Field(None, description="Enable automatic cleanup of old files", json_schema_extra={"example": True})
-    cleanup_ttl_minutes: Optional[int] = Field(None, description="Time-to-live in minutes for cleanup", json_schema_extra={"example": 60})
-    datetime_display_format: Optional[str] = Field(None, description="Datetime display format pattern or 'locale'", json_schema_extra={"example": "DD/MM/YYYY - HH:mm:ss"})
+    cleanup_ttl_minutes: Optional[int] = Field(None, ge=1, le=525600, description="Time-to-live in minutes for cleanup", json_schema_extra={"example": 60})
+    datetime_display_format: Optional[str] = Field(None, max_length=64, description="Datetime display format pattern or 'locale'", json_schema_extra={"example": "DD/MM/YYYY - HH:mm:ss"})
 
 
 # Hex color regex: #rgb or #rrggbb
@@ -191,6 +192,7 @@ _HEX_COLOR_PATTERN = r"^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$"
 
 
 class CustomThemeColors(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     primary:       str = Field(..., pattern=_HEX_COLOR_PATTERN, description="Primary brand color", json_schema_extra={"example": "#ef4444"})
     primary_light: str = Field(..., pattern=_HEX_COLOR_PATTERN, description="Lighter primary variant", json_schema_extra={"example": "#f87171"})
     primary_dark:  str = Field(..., pattern=_HEX_COLOR_PATTERN, description="Darker primary variant", json_schema_extra={"example": "#b91c1c"})
@@ -219,18 +221,21 @@ class CustomThemeListResponse(BaseModel):
 
 
 class CustomThemeCreateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     name:   str = Field(..., min_length=1, max_length=64, description="Display name", json_schema_extra={"example": "My Theme"})
     colors: CustomThemeColors = Field(..., description="Color token payload (every token is required)")
 
 
 class CustomThemeUpdateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     name:   Optional[str] = Field(None, min_length=1, max_length=64, description="New display name", json_schema_extra={"example": "My Theme"})
     colors: Optional[CustomThemeColors] = Field(None, description="Replacement color token payload")
 
 
 class DefaultFormatMapping(BaseModel):
-    input_format: str = Field(..., description="Input file format", json_schema_extra={"example": "png"})
-    output_format: str = Field(..., description="Default output format", json_schema_extra={"example": "jpeg"})
+    model_config = ConfigDict(extra="forbid")
+    input_format: str = Field(..., max_length=20, pattern=r"^[a-z0-9+-]+$", description="Input file format", json_schema_extra={"example": "png"})
+    output_format: str = Field(..., max_length=20, pattern=r"^[a-z0-9+-]+$", description="Default output format", json_schema_extra={"example": "jpeg"})
 
 
 class DefaultFormatListResponse(BaseModel):
@@ -239,8 +244,9 @@ class DefaultFormatListResponse(BaseModel):
 
 
 class DefaultQualityMapping(BaseModel):
-    output_format: str = Field(..., description="Output file format", json_schema_extra={"example": "jpeg"})
-    quality: str = Field(..., description="Default quality level", json_schema_extra={"example": "high"})
+    model_config = ConfigDict(extra="forbid")
+    output_format: str = Field(..., max_length=20, pattern=r"^[a-z0-9+-]+$", description="Output file format", json_schema_extra={"example": "jpeg"})
+    quality: str = Field(..., max_length=20, pattern=r"^(low|medium|high|lossless|balanced|best)$", description="Default quality level", json_schema_extra={"example": "high"})
 
 
 class DefaultQualityListResponse(BaseModel):
@@ -300,8 +306,9 @@ class CompressionListResponse(BaseModel):
 
 
 class DefaultCompressionLevelMapping(BaseModel):
-    media_format: str = Field(..., description="Media file format", json_schema_extra={"example": "jpeg"})
-    compression_level: str = Field(..., description="Default compression-level preset", json_schema_extra={"example": "max"})
+    model_config = ConfigDict(extra="forbid")
+    media_format: str = Field(..., max_length=20, pattern=r"^[a-z0-9+-]+$", description="Media file format", json_schema_extra={"example": "jpeg"})
+    compression_level: str = Field(..., max_length=20, pattern=r"^(light|balanced|max)$", description="Default compression-level preset", json_schema_extra={"example": "max"})
 
 
 class DefaultCompressionLevelListResponse(BaseModel):
@@ -312,8 +319,8 @@ class DefaultCompressionLevelListResponse(BaseModel):
 class UserResponse(BaseModel):
     uuid: str = Field(..., description="Stable user UUID", json_schema_extra={"example": "123e4567-e89b-12d3-a456-426614174000"})
     username: str = Field(..., description="Unique account username", json_schema_extra={"example": "alice"})
-    email: Optional[str] = Field(None, description="Optional email address", json_schema_extra={"example": "alice@example.com"})
-    full_name: Optional[str] = Field(None, description="Optional full name", json_schema_extra={"example": "Alice Example"})
+    email: Optional[str] = Field(None, max_length=254, description="Optional email address", json_schema_extra={"example": "alice@example.com"})
+    full_name: Optional[str] = Field(None, max_length=128, description="Optional full name", json_schema_extra={"example": "Alice Example"})
     role: UserRoleValue = Field(..., description="Assigned role", json_schema_extra={"example": "member"})
     disabled: bool = Field(..., description="Whether the account is disabled", json_schema_extra={"example": False})
     is_guest: bool = Field(False, description="Whether this is a guest account", json_schema_extra={"example": False})
@@ -325,26 +332,29 @@ class UserListResponse(BaseModel):
 
 
 class UserCreateRequest(BaseModel):
-    username: str = Field(..., min_length=1, description="Unique account username", json_schema_extra={"example": "alice"})
-    email: Optional[str] = Field(None, description="Optional email address", json_schema_extra={"example": "alice@example.com"})
-    full_name: Optional[str] = Field(None, description="Optional full name", json_schema_extra={"example": "Alice Example"})
-    password: str = Field(..., min_length=8, description="Plain-text password (min 8 characters)", json_schema_extra={"example": "correct horse battery staple"})
+    model_config = ConfigDict(extra="forbid")
+    username: str = Field(..., min_length=1, max_length=64, pattern=r"^[\w.@+-]+$", description="Unique account username", json_schema_extra={"example": "alice"})
+    email: Optional[str] = Field(None, max_length=254, description="Optional email address", json_schema_extra={"example": "alice@example.com"})
+    full_name: Optional[str] = Field(None, max_length=128, description="Optional full name", json_schema_extra={"example": "Alice Example"})
+    password: str = Field(..., min_length=8, max_length=72, description="Plain-text password (min 8 characters)", json_schema_extra={"example": "correct horse battery staple"})
     role: UserRoleValue = Field("member", description="Assigned role", json_schema_extra={"example": "member"})
     disabled: bool = Field(False, description="Whether the account starts disabled", json_schema_extra={"example": False})
 
 
 class UserUpdateRequest(BaseModel):
-    username: Optional[str] = Field(None, min_length=1, description="Unique account username", json_schema_extra={"example": "alice"})
-    email: Optional[str] = Field(None, description="Optional email address", json_schema_extra={"example": "alice@example.com"})
-    full_name: Optional[str] = Field(None, description="Optional full name", json_schema_extra={"example": "Alice Example"})
-    password: Optional[str] = Field(None, min_length=8, description="New plain-text password (min 8 characters)", json_schema_extra={"example": "new secure password"})
+    model_config = ConfigDict(extra="forbid")
+    username: Optional[str] = Field(None, min_length=1, max_length=64, pattern=r"^[\w.@+-]+$", description="Unique account username", json_schema_extra={"example": "alice"})
+    email: Optional[str] = Field(None, max_length=254, description="Optional email address", json_schema_extra={"example": "alice@example.com"})
+    full_name: Optional[str] = Field(None, max_length=128, description="Optional full name", json_schema_extra={"example": "Alice Example"})
+    password: Optional[str] = Field(None, min_length=8, max_length=72, description="New plain-text password (min 8 characters)", json_schema_extra={"example": "new secure password"})
     role: Optional[UserRoleValue] = Field(None, description="Assigned role", json_schema_extra={"example": "admin"})
     disabled: Optional[bool] = Field(None, description="Whether the account is disabled", json_schema_extra={"example": False})
 
 
 class UserAuthRequest(BaseModel):
-    username: str = Field(..., min_length=1, description="Username to authenticate", json_schema_extra={"example": "alice"})
-    password: str = Field(..., min_length=1, description="Plain-text password to verify", json_schema_extra={"example": "correct horse battery staple"})
+    model_config = ConfigDict(extra="forbid")
+    username: str = Field(..., min_length=1, max_length=64, description="Username to authenticate", json_schema_extra={"example": "alice"})
+    password: str = Field(..., min_length=1, max_length=72, description="Plain-text password to verify", json_schema_extra={"example": "correct horse battery staple"})
 
 
 class UserAuthResponse(BaseModel):
@@ -364,14 +374,16 @@ class UserBootstrapStatusResponse(BaseModel):
 
 
 class UserSelfUpdateRequest(BaseModel):
-    username: Optional[str] = Field(None, min_length=1, description="Unique account username", json_schema_extra={"example": "alice"})
-    email: Optional[str] = Field(None, description="Optional email address", json_schema_extra={"example": "alice@example.com"})
-    full_name: Optional[str] = Field(None, description="Optional full name", json_schema_extra={"example": "Alice Example"})
-    password: Optional[str] = Field(None, min_length=8, description="New plain-text password (min 8 characters)", json_schema_extra={"example": "new secure password"})
-    current_password: Optional[str] = Field(None, description="Existing password, required when setting a new one", json_schema_extra={"example": "current password"})
+    model_config = ConfigDict(extra="forbid")
+    username: Optional[str] = Field(None, min_length=1, max_length=64, pattern=r"^[\w.@+-]+$", description="Unique account username", json_schema_extra={"example": "alice"})
+    email: Optional[str] = Field(None, max_length=254, description="Optional email address", json_schema_extra={"example": "alice@example.com"})
+    full_name: Optional[str] = Field(None, max_length=128, description="Optional full name", json_schema_extra={"example": "Alice Example"})
+    password: Optional[str] = Field(None, min_length=8, max_length=72, description="New plain-text password (min 8 characters)", json_schema_extra={"example": "new secure password"})
+    current_password: Optional[str] = Field(None, max_length=72, description="Existing password, required when setting a new one", json_schema_extra={"example": "current password"})
 
 
 class ApiKeyCreateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     name: str = Field(..., min_length=1, max_length=100, description="Human-readable label for the key", json_schema_extra={"example": "CI pipeline"})
 
 

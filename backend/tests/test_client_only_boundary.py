@@ -113,7 +113,7 @@ def test_websocket_cannot_bypass_policy():
 
 def test_allowed_preference_route():
     status, calls = asyncio.run(invoke("/api/default-formats", method="PUT",
-        headers={b"content-type": b"application/json"}, chunks=(b'{"x":"png"}',)))
+        headers={b"content-type": b"application/json"}, chunks=(b'{"input_format":"png","output_format":"jpeg"}',)))
     assert status == 204 and calls == ["reached"]
 
 
@@ -131,3 +131,37 @@ def test_legacy_route_modules_not_registered():
     source = api_init.read_text(encoding="utf-8")
     for name in forbidden:
         assert f"{name}.router" not in source
+
+
+def test_account_payload_cannot_carry_files_or_unknown_fields():
+    for body in (
+        b'{"username":"test","password":"test","file":"private"}',
+        b'{"username":"test","password":"test","filename":"secret.docx"}',
+        b'{"username":"test","password":"test","password":"other"}',
+        b'{"username":"test","password":"' + b'x' * 73 + b'"}',
+    ):
+        status, calls = asyncio.run(invoke('/api/users/authenticate', headers={b'content-type':b'application/json'}, chunks=(body,)))
+        assert status == 403 and not calls
+
+
+def test_settings_rejects_nested_content_and_non_hex_colors():
+    for body in (b'{"file":"private"}', b'{"theme":{"data":"private"}}', b'{"colors":{"primary":"url(https://evil)"}}'):
+        status, calls = asyncio.run(invoke('/api/settings', method='PATCH', headers={b'content-type':b'application/json'}, chunks=(body,)))
+        assert status == 403 and not calls
+
+
+def test_non_api_writes_are_denied():
+    for path in ('/', '/assets/document.pdf', '/engines/upload'):
+        status, calls = asyncio.run(invoke(path, chunks=(b'private',)))
+        assert status == 403 and not calls
+
+
+def test_read_and_delete_routes_reject_declared_bodies():
+    for path,method in [('/api/settings','GET'),('/api/users/00000000-0000-0000-0000-000000000000','DELETE')]:
+        status,calls=asyncio.run(invoke(path,method=method,headers={b'content-length':b'7'},chunks=(b'private',)))
+        assert status==403 and not calls
+
+
+def test_admin_user_list_is_available():
+    status,calls=asyncio.run(invoke('/api/users',method='GET'))
+    assert status==204 and calls
