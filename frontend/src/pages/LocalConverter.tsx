@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { convertLocal, formatsFor, type LocalFormat } from '../utils/localConversion'
+import { zipFiles, tarFiles } from '../utils/localArchives'
 
 export default function LocalConverter() {
   const { t } = useTranslation()
@@ -13,6 +14,19 @@ export default function LocalConverter() {
   useEffect(() => () => { urls.current.forEach(URL.revokeObjectURL) }, [])
   const available = files.length ? files.map(formatsFor).reduce((a,b) => a.filter(f=>b.includes(f))) : []
   const selected = available.includes(format) ? format : available[0]
+
+  async function makeArchive(kind: 'zip' | 'tar') {
+    if (!files.length) return
+    setBusy(true); setError('')
+    try {
+      const output = kind === 'zip' ? await zipFiles(files) : await tarFiles(files)
+      const url = URL.createObjectURL(output)
+      urls.current.push(url)
+      const link = document.createElement('a'); link.href=url;link.download='files.'+kind
+      document.body.appendChild(link);link.click();link.remove()
+    } catch(e) {setError(e instanceof Error ? e.message : 'Archivierung fehlgeschlagen')}
+    finally {setBusy(false)}
+  }
 
   async function run() {
     if (!selected) return
@@ -61,6 +75,10 @@ export default function LocalConverter() {
             className="rounded-lg bg-primary px-6 py-3 font-bold text-white disabled:opacity-50">
             {busy ? 'Verarbeite lokal…' : 'Lokal konvertieren'}
           </button>
+        </div>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <button type="button" disabled={!files.length || busy} onClick={() => makeArchive("zip")} className="rounded-lg border border-primary px-4 py-2 text-primary disabled:opacity-50">Lokal ZIP erstellen</button>
+          <button type="button" disabled={!files.length || busy} onClick={() => makeArchive("tar")} className="rounded-lg border border-primary px-4 py-2 text-primary disabled:opacity-50">Lokal TAR erstellen</button>
         </div>
         <p className="mt-4 text-sm text-text-muted">{files.length} Datei(en) ausgewählt · {done} verarbeitet</p>
         {error && <p role="alert" className="mt-4 text-red-400">{error}</p>}
