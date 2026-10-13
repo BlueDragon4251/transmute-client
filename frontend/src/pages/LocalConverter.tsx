@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { convertLocal, formatsFor, type LocalFormat } from '../utils/localConversion'
 
 export default function LocalConverter() {
+  const { t } = useTranslation()
   const [files, setFiles] = useState<File[]>([])
   const [format, setFormat] = useState<LocalFormat>('png')
   const [busy, setBusy] = useState(false)
@@ -34,7 +36,7 @@ export default function LocalConverter() {
   return (
     <div className="mx-auto max-w-4xl p-6 text-text">
       <div className="mb-8">
-        <p className="text-sm font-semibold uppercase tracking-widest text-primary">Transmute Client Only</p>
+        <p className="text-sm font-semibold uppercase tracking-widest text-primary">{t('app.name')} Client Only</p>
         <h1 className="mt-2 text-3xl font-bold">Lokal konvertieren</h1>
         <p className="mt-3 text-text-muted">Keine Datei-Uploads. Dateien werden auf diesem Gerät im Browser verarbeitet.</p>
       </div>
