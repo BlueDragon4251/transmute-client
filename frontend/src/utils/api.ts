@@ -148,3 +148,27 @@ export const apiJson = <T,>(input: RequestInfo | URL, init: RequestInit = {}, op
 export const apiBlob = (input: RequestInfo | URL, init: RequestInit = {}, options: FetchOptions = {}) => api.blob(input, init, options)
 export const apiText = (input: RequestInfo | URL, init: RequestInit = {}, options: FetchOptions = {}) => api.text(input, init, options)
 
+
+/**
+ * Legacy-page compatibility: NEVER send a file or upload metadata.
+ * These functions remain only because obsolete pages are still compiled.
+ * The active client-only router does not expose those pages.
+ */
+export interface ChunkedUploadProgress {
+  bytesUploaded: number
+  totalBytes: number
+  chunksUploaded: number
+  totalChunks: number
+}
+
+export async function getUploadConfig(): Promise<{ max_chunk_size: number }> {
+  throw new Error('Server uploads are disabled in client-only Transmute')
+}
+
+export async function chunkedUpload(
+  _file: File,
+  _chunkSize: number,
+  _onProgress?: (progress: ChunkedUploadProgress) => void,
+): Promise<never> {
+  throw new Error('Server uploads are disabled in client-only Transmute')
+}
