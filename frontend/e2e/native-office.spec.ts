@@ -58,8 +58,23 @@ test('LibreOffice WASM preserves Office layouts, charts, legacy formats and edit
  expect(new TextDecoder().decode(unzipSync(roundtrip[0])['word/document.xml'])).toContain(marker)
  const excel=XLSX.read(roundtrip[1],{type:'buffer'});expect(excel.SheetNames.length).toBe(2);expect(excel.Sheets[excel.SheetNames[0]].D1.f).toContain('SUM(');expect(excel.Sheets[excel.SheetNames[0]].D1.v).toBe(300)
  const powerpoint=unzipSync(roundtrip[2]);expect(new TextDecoder().decode(powerpoint['ppt/slides/slide1.xml'])).toContain(marker);expect(Object.keys(powerpoint).some(n=>n.startsWith('ppt/charts/'))).toBe(true)
+ const namespaces='xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0" xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0" xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0" xmlns:presentation="urn:oasis:names:tc:opendocument:xmlns:presentation:1.0" xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0"'
+ const flat=(kind:string,body:string)=>Buffer.from(`<?xml version="1.0"?><office:document ${namespaces} office:version="1.3" office:mimetype="application/vnd.oasis.opendocument.${kind}"><office:body>${body}</office:body></office:document>`)
+ const extra=await batch(page,[input('flat.fodt',flat('text',`<office:text><text:p>${marker}</text:p></office:text>`)),input('flat.fods',flat('spreadsheet',`<office:spreadsheet><table:table table:name="Flat"><table:table-row><table:table-cell office:value-type="string"><text:p>${marker}</text:p></table:table-cell></table:table-row></table:table></office:spreadsheet>`)),input('flat.fodp',flat('presentation',`<office:presentation><draw:page draw:name="Flat"><draw:frame svg:x="1cm" svg:y="1cm" svg:width="15cm" svg:height="3cm"><draw:text-box><text:p>${marker}</text:p></draw:text-box></draw:frame></draw:page></office:presentation>`)),input('binary-book.xlsb',Buffer.from(XLSX.write(book,{type:'array',bookType:'xlsb'})))],['docx','xlsx','pptx','xlsx'])
+ expect(new TextDecoder().decode(unzipSync(extra[0])['word/document.xml'])).toContain(marker)
+ for(const bytes of [extra[1],extra[3]]){const b=XLSX.read(bytes,{type:'buffer'});expect(b.Sheets[b.SheetNames[0]].A1.v).toBe(marker)}
+ expect(new TextDecoder().decode(unzipSync(extra[2])['ppt/slides/slide1.xml'])).toContain(marker)
  const texts=await batch(page,[input('writer.pdf',rendered[0]),input('calc.pdf',rendered[1]),input('slides.pdf',rendered[2]),input('writer-preview.pdf',rendered[0])],['txt','txt','txt','pdf-png'])
  expect(texts[0].toString()).toContain(marker);expect(texts[0].toString()).toContain('HEADER_NATIVE_PRIVATE');expect(texts[0].toString()).toContain('FOOTER_NATIVE_PRIVATE');expect(texts[0].toString()).toContain('Native table A')
  expect(texts[1].toString()).toContain('SECOND_NATIVE_SHEET');expect(texts[2].toString()).toContain('NATIVE CHART')
  const images=unzipSync(texts[3]);await test.info().attach('libreoffice-writer.png',{body:Buffer.from(images['page-1.png']),contentType:'image/png'})
+ // Hold the heavy asset so cancellation deterministically happens during startup.
+ await page.reload();await expect(page.getByRole('heading',{name:'Dateien lokal konvertieren'})).toBeVisible()
+ let release:()=>void=()=>{};const gate=new Promise<void>(resolve=>{release=resolve})
+ const wasmUrl='**/engines/office/soffice.wasm';await context.route(wasmUrl,async route=>{await gate;await route.abort().catch(()=>{})})
+ await page.locator('#local-files').setInputFiles(input('cancel.docx',writer));await page.getByRole('combobox',{name:'Ausgabe für cancel.docx',exact:true}).selectOption('pdf')
+ const requested=page.waitForRequest(r=>r.url().endsWith('/engines/office/soffice.wasm'));await page.getByRole('button',{name:'Batch konvertieren'}).click();await requested
+ await page.getByRole('button',{name:'Abbrechen',exact:true}).click();release()
+ await expect(page.getByRole('alert')).toContainText('Abgebrochen');await expect(page.locator('iframe[src*="/engines/office/frame.html"]')).toHaveCount(0);await expect(page.getByRole('link',{name:'Herunterladen'})).toHaveCount(0)
+ await context.unroute(wasmUrl)
 })
