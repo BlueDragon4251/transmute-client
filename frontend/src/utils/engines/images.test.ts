@@ -5,5 +5,7 @@ it('refuses stylesheet instructions and obfuscated CSS before SVG decoding',asyn
  await expect(validateImageSource(svg('<rect width="10" height="10"/>','<?xml-stylesheet href="/api/settings?PRIVATE_MARKER" type="text/css"?>'))).rejects.toThrow(/Verarbeitungsanweisungen/)
  await expect(validateImageSource(svg('<rect style="fill:u\\72l(/api/settings?PRIVATE_MARKER)"/>'))).rejects.toThrow(/verschleierte/)
  await expect(validateImageSource(svg('<rect style="background-image:image-set(&quot;/api/settings?PRIVATE_MARKER&quot; 1x)"/>'))).rejects.toThrow(/verschleierte/)
+ await expect(validateImageSource(svg('<g xml:base="/api/settings?PRIVATE_MARKER"><use href="#local"/></g>'))).rejects.toThrow(/Externe/)
+ await expect(validateImageSource(svg('<set attributeName="href" to="/api/settings?PRIVATE_MARKER"/>'))).rejects.toThrow(/Aktiver/)
  await expect(validateImageSource(svg('<rect fill="url(#local)" style="stroke:black;stroke-width:1"/>'))).resolves.toBeUndefined()
 })
