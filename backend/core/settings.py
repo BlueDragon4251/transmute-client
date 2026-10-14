@@ -199,17 +199,10 @@ class Settings(BaseSettings):
         # app_url=https://host/transmute -> "/transmute"; bare host -> "".
         self.root_path = urlparse(self.app_url).path.rstrip("/") if self.app_url else ""
 
-        # Ensure directories exist
-        for path in [
-            self.data_dir,
-            self.db_path.parent,
-            self.upload_dir,
-            self.output_dir,
-            self.tmp_dir,
-            self.chunks_dir,
-            self.pdf_css_dir,
-        ]:
+        # Client-only runtime persists only account/settings SQLite data.
+        for path in [self.data_dir, self.db_path.parent]:
             path.mkdir(parents=True, exist_ok=True)
+
 
 
 @lru_cache

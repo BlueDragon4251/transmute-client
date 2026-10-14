@@ -1,12 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, NavLink } from 'react-router-dom'
-import { FaArrowRightArrowLeft, FaChartBar, FaChevronDown, FaClockRotateLeft, FaFile, FaGear, FaRightFromBracket, FaUser, FaUsers } from 'react-icons/fa6'
+import { FaArrowRightArrowLeft, FaChevronDown, FaGear, FaRightFromBracket, FaUser, FaUsers } from 'react-icons/fa6'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../AuthContext'
-import { useTheme } from '../ThemeContext'
 
 function Header() {
-  const { keepOriginals } = useTheme()
   const { user, isAdmin, logout } = useAuth()
   const { t } = useTranslation()
   const [menuOpen, setMenuOpen] = useState(false)
@@ -54,30 +52,6 @@ function Header() {
               >
                 <FaArrowRightArrowLeft className="text-base" />
                 <span className="hidden sm:inline">{t('nav.convert')}</span>
-              </NavLink>
-              {keepOriginals && (
-                <NavLink
-                  to="/files"
-                  className={({ isActive }) =>
-                    `flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition duration-200 ${isActive ? 'bg-primary/10 text-primary-light' : 'text-text hover:bg-surface-light hover:text-primary'}`
-                  }
-                  title={t('nav.files')}
-                  aria-label={t('nav.files')}
-                >
-                  <FaFile className="text-base" />
-                  <span className="hidden sm:inline">{t('nav.files')}</span>
-                </NavLink>
-              )}
-              <NavLink
-                to="/history"
-                className={({ isActive }) =>
-                  `flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition duration-200 ${isActive ? 'bg-primary/10 text-primary-light' : 'text-text hover:bg-surface-light hover:text-primary'}`
-                }
-                title={t('nav.history')}
-                aria-label={t('nav.history')}
-              >
-                <FaClockRotateLeft className="text-base" />
-                <span className="hidden sm:inline">{t('nav.history')}</span>
               </NavLink>
             </div>
 
@@ -136,16 +110,7 @@ function Header() {
                               <FaUsers className="text-sm" />
                               {t('menu.userManagement')}
                             </NavLink>
-                            <NavLink
-                              to="/admin/stats"
-                              onClick={() => setMenuOpen(false)}
-                              className={({ isActive }) =>
-                                `mt-1 flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition duration-200 ${isActive ? 'bg-primary/10 text-primary-light' : 'text-text hover:bg-surface-light hover:text-primary'}`
-                              }
-                            >
-                              <FaChartBar className="text-sm" />
-                              {t('menu.stats')}
-                            </NavLink>
+
                           </>
                         )}
                       </>

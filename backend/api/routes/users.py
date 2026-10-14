@@ -6,7 +6,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 
 from api.deps import (
     get_current_active_user, get_current_admin_user, get_current_user_optional, get_user_db,
-    get_api_key_db, get_file_db, get_conversion_db, get_conversion_relations_db, get_settings_db,
+    get_api_key_db, get_settings_db,
     get_default_formats_db,
 )
 from api.schemas import (
@@ -21,9 +21,8 @@ from api.schemas import (
     UserSelfUpdateRequest,
     UserUpdateRequest,
 )
-from core import delete_file_and_metadata
 from core.auth import create_access_token, get_password_hash_str, verify_password
-from db import UserDB, ApiKeyDB, FileDB, ConversionDB, ConversionRelationsDB, SettingsDB, DefaultFormatsDB
+from db import UserDB, ApiKeyDB, SettingsDB, DefaultFormatsDB
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -391,9 +390,6 @@ def delete_user(
     db: UserDB = Depends(get_user_db),
     current_user: dict = Depends(get_current_admin_user),
     api_key_db: ApiKeyDB = Depends(get_api_key_db),
-    file_db: FileDB = Depends(get_file_db),
-    conversion_db: ConversionDB = Depends(get_conversion_db),
-    conversion_relations_db: ConversionRelationsDB = Depends(get_conversion_relations_db),
     settings_db: SettingsDB = Depends(get_settings_db),
     default_formats_db: DefaultFormatsDB = Depends(get_default_formats_db),
 ):
@@ -405,11 +401,6 @@ def delete_user(
 
     # Cascade: remove all data belonging to the user
     api_key_db.delete_all_keys_for_user(user_uuid)
-    for f in file_db.list_files(user_id=user_uuid):
-        delete_file_and_metadata(f["id"], file_db, raise_if_not_found=False)
-    for c in conversion_db.list_files(user_id=user_uuid):
-        delete_file_and_metadata(c["id"], conversion_db, raise_if_not_found=False)
-        conversion_relations_db.delete_relation_by_converted(c["id"])
     settings_db.delete_settings(user_uuid)
     default_formats_db.delete_all(user_uuid)
 

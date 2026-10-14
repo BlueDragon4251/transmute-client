@@ -28,11 +28,11 @@ def test_derived_paths_created(tmp_path):
 
 def test_directories_are_created(tmp_path):
     s = Settings(data_dir=tmp_path / "fresh")
-    assert s.upload_dir.exists()
-    assert s.output_dir.exists()
-    assert s.tmp_dir.exists()
+    assert not s.upload_dir.exists()
+    assert not s.output_dir.exists()
+    assert not s.tmp_dir.exists()
     assert s.db_path.parent.exists()
-    assert s.pdf_css_dir.exists()
+    assert not s.pdf_css_dir.exists()
 
 
 def test_secret_key_auto_generated(tmp_path):

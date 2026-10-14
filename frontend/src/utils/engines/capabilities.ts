@@ -1,0 +1,10 @@
+export const sheetInputs = ['xlsx', 'xls', 'xlsb', 'ods', 'fods']
+export const documentInputs = ['docx', 'odt', 'fodt']
+export const slideInputs = ['pptx', 'odp', 'fodp']
+export const audioInputs = ['wav', 'mp3', 'aac', 'm4a', 'ogg', 'flac', 'opus', 'aiff', 'wma']
+export const videoInputs = ['mp4', 'mov', 'mkv', 'avi', 'webm', 'm4v', 'mpeg', 'mpg', 'ts']
+export const audioOutputs = ['mp3', 'wav', 'flac', 'ogg', 'm4a', 'opus']
+export const videoOutputs = ['mp4', 'webm', 'mkv', 'gif']
+
+export const legacyDocumentInputs = ['doc','rtf']
+export const legacySlideInputs = ['ppt']

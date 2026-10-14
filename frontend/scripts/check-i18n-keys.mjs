@@ -60,7 +60,7 @@ async function main() {
     .filter(({ locale }) => locale !== baseLocale)
     .map(({ locale, keys }) => {
       const missing = [...baseKeys].filter((key) => !keys.has(key));
-      const extra = [...keys].filter((key) => !baseKeys.has(key));
+      const extra = [...keys].filter((key) => !baseKeys.has(key) && !(/_(zero|one|two|few|many|other)$/.test(key) && [...baseKeys].some(base => base.replace(/_(zero|one|two|few|many|other)$/, '') === key.replace(/_(zero|one|two|few|many|other)$/, ''))));
       return { locale, missing, extra };
     })
     .filter(({ missing, extra }) => missing.length > 0 || extra.length > 0);

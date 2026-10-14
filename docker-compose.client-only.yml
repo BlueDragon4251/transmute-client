@@ -1,0 +1,32 @@
+# Build this fork; never deploy the upstream ghcr.io/transmute-app/transmute image.
+services:
+  transmute-client:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.client-only
+    restart: unless-stopped
+    networks:
+      - transmute_proxy
+    ports:
+      - "127.0.0.1:9040:3313"
+    environment:
+      ALLOW_UNAUTHENTICATED: "false"
+      ORT_DISABLE_TELEMETRY: "1"
+    volumes:
+      - transmute_client_data:/app/data
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:3313/api/health/ready', timeout=5).close()"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+volumes:
+  transmute_client_data:
+
+networks:
+  transmute_proxy:
+    name: transmute_proxy

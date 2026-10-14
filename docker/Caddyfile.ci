@@ -1,0 +1,10 @@
+:80 {
+    request_body {
+        max_size 8KB
+    }
+    log {
+        output stdout
+        format json
+    }
+    reverse_proxy transmute-ci:3313
+}

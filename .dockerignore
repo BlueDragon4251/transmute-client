@@ -8,3 +8,9 @@ assets/
 docs/
 frontend/node_modules/
 frontend/dist/
+
+frontend/public/engines/
+frontend/playwright-report/
+frontend/test-results/
+frontend/.engine-cache/
+.venv/

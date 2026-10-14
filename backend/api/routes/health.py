@@ -8,7 +8,7 @@ router = APIRouter(prefix="/health", tags=["health"])
 
 settings = get_settings()
 DB_PATH = settings.db_path
-UPLOAD_DIR = settings.upload_dir
+DATA_DIR = settings.data_dir
 
 
 @router.get(
@@ -70,16 +70,17 @@ def readiness():
     except Exception as e:
         checks["database"] = f"error: {e}"
 
-    # Filesystem check
+    # Probe only the application-data directory. Never create upload storage.
     try:
-        os.makedirs(UPLOAD_DIR, exist_ok=True)
-        test_path = os.path.join(UPLOAD_DIR, ".healthcheck")
-        with open(test_path, "w") as f:
-            f.write("ok")
+        os.makedirs(DATA_DIR, exist_ok=True)
+        test_path = os.path.join(DATA_DIR, ".healthcheck")
+        with open(test_path, "w") as probe:
+            probe.write("ok")
         os.remove(test_path)
         checks["storage"] = "ok"
-    except Exception as e:
-        checks["storage"] = f"error: {e}"
+    except Exception:
+        checks["storage"] = "error"
+
 
     # Determine overall status
     if all(v == "ok" for v in checks.values()):

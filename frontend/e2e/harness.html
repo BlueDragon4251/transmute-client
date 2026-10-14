@@ -1,0 +1,7 @@
+<!doctype html><html><head><base href="/"><meta charset="utf-8"></head><body><script type="module">
+import {convertLocal, formatsFor} from '/src/utils/localConversion.ts'
+import {zipFiles, tarFiles} from '/src/utils/localArchives.ts'
+import {extractArchive} from '/src/utils/engines/archives.ts'
+import {mergePdfs, imagesPdf} from '/src/utils/engines/pdf.ts'
+window.engines = {convertLocal, formatsFor, zipFiles, tarFiles, extractArchive, mergePdfs, imagesPdf}
+</script></body></html>
