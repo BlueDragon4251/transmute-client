@@ -28,4 +28,9 @@ test('production CSP permits OCR and CAD batches without document network traffi
  await page.getByRole('button',{name:'Alles entfernen',exact:true}).click();await page.locator('#local-files').setInputFiles({name:'searchable.pdf',buffer:output[1],mimeType:'application/pdf'})
  await page.getByRole('combobox',{name:'Ausgabe für searchable.pdf',exact:true}).selectOption('txt');await page.getByRole('button',{name:'Batch konvertieren'}).click()
  await expect(page.getByRole('link',{name:'Herunterladen'})).toHaveCount(1);const event=page.waitForEvent('download');await page.getByRole('link',{name:'Herunterladen'}).click();const stream=await(await event).createReadStream(),chunks=[];for await(const chunk of stream!)chunks.push(chunk);expect(Buffer.concat(chunks).toString()).toContain('LOCAL OCR 2468')
+ await page.getByRole('button',{name:'Alles entfernen',exact:true}).click()
+ await page.locator('#local-files').setInputFiles([{name:'broken.step',buffer:Buffer.from('not a CAD body'),mimeType:'application/octet-stream'},{name:'broken.dwg',buffer:Buffer.from('AC1032 broken'),mimeType:'application/octet-stream'}])
+ await page.getByRole('combobox',{name:'Ausgabe für broken.step',exact:true}).selectOption('stl');await page.getByRole('combobox',{name:'Ausgabe für broken.dwg',exact:true}).selectOption('dxf')
+ await page.getByRole('button',{name:'Batch konvertieren'}).click();await expect(page.getByRole('alert')).toHaveCount(2,{timeout:60000});await expect(page.getByRole('link',{name:'Herunterladen'})).toHaveCount(0)
+
 })

@@ -43,6 +43,12 @@ test('LibreOffice WASM preserves Office layouts, charts, legacy formats and edit
  const frame=page.frames().find(frame=>frame.url().includes('/engines/office/frame.html'))!
  expect(await frame.evaluate(async()=>{try{await fetch('/api/settings?OFFICE_NATIVE_PRIVATE');return false}catch{return true}})).toBe(true)
  expect(await frame.evaluate(()=>{try{const request=new XMLHttpRequest();request.open('POST','/api/settings');request.send('OFFICE_NATIVE_PRIVATE');return false}catch{return true}})).toBe(true)
+ expect(await frame.evaluate(async()=>{
+  const blocked: boolean[]=[]
+  for(const [url,options] of [['./soffice.data?OFFICE_NATIVE_PRIVATE',{}],['./soffice.data',{headers:{'X-Document':'OFFICE_NATIVE_PRIVATE'}}],['https://example.com/leak',{}]] as [string,RequestInit][]){try{await fetch(url,options);blocked.push(false)}catch{blocked.push(true)}}
+  try{const request=new XMLHttpRequest();request.open('GET','./soffice.data');request.setRequestHeader('X-Document','OFFICE_NATIVE_PRIVATE');blocked.push(false)}catch{blocked.push(true)}
+  return blocked
+ })).toEqual([true,true,true,true])
  const binary=await batch(page,[input('legacy-writer.docx',writer),input('legacy-calc.xlsx',calc),input('legacy-slides.pptx',impress),input('roundtrip.rtf',rendered[3])],['doc','xls','ppt','docx'])
  for(const bytes of binary.slice(0,3))expect([...bytes.subarray(0,4)]).toEqual([0xd0,0xcf,0x11,0xe0])
  expect(new TextDecoder().decode(unzipSync(binary[3])['word/document.xml'])).toContain(marker)
