@@ -5,3 +5,6 @@ export const audioInputs = ['wav', 'mp3', 'aac', 'm4a', 'ogg', 'flac', 'opus', '
 export const videoInputs = ['mp4', 'mov', 'mkv', 'avi', 'webm', 'm4v', 'mpeg', 'mpg', 'ts']
 export const audioOutputs = ['mp3', 'wav', 'flac', 'ogg', 'm4a', 'opus']
 export const videoOutputs = ['mp4', 'webm', 'mkv', 'gif']
+
+export const legacyDocumentInputs = ['doc','rtf']
+export const legacySlideInputs = ['ppt']

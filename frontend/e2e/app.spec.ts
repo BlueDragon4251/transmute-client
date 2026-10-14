@@ -113,6 +113,7 @@ test('production rich Office conversions retain formatting and images without fi
  const XLSX=await import('xlsx'),book=XLSX.utils.book_new();XLSX.utils.book_append_sheet(book,XLSX.utils.aoa_to_sheet([['RICH_PRIVATE_OFFICE',42],['next',1234.5]]),'ProductionGrid')
  const spreadsheet=Buffer.from(XLSX.write(book,{type:'array',bookType:'xlsx'})),bytes=Buffer.from(await richDocumentFixture())
  await page.locator('#local-files').setInputFiles([{name:'rich.docx',mimeType:'application/vnd.openxmlformats-officedocument.wordprocessingml.document',buffer:bytes},{name:'rich-pdf.docx',mimeType:'application/vnd.openxmlformats-officedocument.wordprocessingml.document',buffer:bytes},{name:'rich-grid.xlsx',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',buffer:spreadsheet}])
+ await page.getByRole('combobox',{name:'Office-Engine'}).selectOption('structured')
  await page.getByRole('combobox',{name:'Ausgabe für rich.docx',exact:true}).selectOption('odt')
  await page.getByRole('combobox',{name:'Ausgabe für rich-pdf.docx',exact:true}).selectOption('pdf')
  await page.getByRole('combobox',{name:'Ausgabe für rich-grid.xlsx',exact:true}).selectOption('pdf')

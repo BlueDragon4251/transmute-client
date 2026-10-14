@@ -47,11 +47,11 @@ export async function imagesPdf(files: File[], options: ConversionOptions = {}):
   for (const [i, file] of files.entries()) {
     checkpoint(options, i / files.length * 90, 'Bild in PDF einbetten')
     await (await import('./images')).validateImageSource(file)
-    const bitmap = await createImageBitmap(file)
+    const bitmap = await (await import('./images')).loadLocalImage(file)
     try {
       const canvas = document.createElement('canvas'); canvas.width = bitmap.width; canvas.height = bitmap.height
       if (canvas.width * canvas.height > 40_000_000) throw Error('Bild überschreitet 40 Megapixel')
-      canvas.getContext('2d')!.drawImage(bitmap, 0, 0)
+      canvas.getContext('2d')!.drawImage(bitmap.source, 0, 0)
       const png = await new Promise<Blob>((resolve, reject) => canvas.toBlob(b => b ? resolve(b) : reject(Error('PNG-Export fehlgeschlagen')), 'image/png'))
       const image = await pdf.embedPng(await png.arrayBuffer())
       const scale = Math.min(495 / image.width, 742 / image.height, 1)

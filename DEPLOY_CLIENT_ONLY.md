@@ -112,7 +112,7 @@ docker compose -f docker-compose.client-only.yml logs --tail 50
 
 Use local fixtures first. Review `CLIENT_FORMAT_MATRIX.md` before relying on
 formatting: Word/Impress/PowerPoint retain supported formatting/images/tables, with warnings for unsupported layout features, and
-spreadsheet PDFs are paginated cell grids with displayed values and column bands for wide sheets. Cached formula values are exported without recalculation. Browser results are downloadable links; no
+the default Office/PDF mode uses local LibreOffice filters and original print layouts. The basis mode instead creates spreadsheet cell grids with cached values. OCR, STEP/IGES/BREP and DWG processing remain local as well. Browser results are downloadable links; no
 automatic upload, server processing, filename log or conversion history occurs.
 
 The CI Docker job builds/boots the image, places Caddy in front of it, runs the
@@ -120,3 +120,9 @@ production batch/account/download tests, inspects proxy logs and checks that no
 file-storage directories exist. Passing CI verifies fixtures, not every possible
 file or the DNS/certificates/firewall of your own network. PR #1 remains Draft;
 no merge is required to host the working branch.
+
+## Native Office browser requirements
+
+Use trusted HTTPS on the LAN (localhost is exempt). The server sends COOP `same-origin`, COEP `require-corp` and CORP `same-origin`; keep these response headers when proxying through Caddy. Do not strip them or embed the app in a cross-origin frame. The larger Office engine is loaded on demand from this deployment, reserves about 1 GiB shared memory, and is released after 30 seconds idle. Use the basis mode on memory-constrained devices.
+
+The Docker build additionally acquires a fixed LibreOffice WASM release at build time and verifies its hashes. Allow build-time access to npm/GitHub; employee conversion does not contact those services. No extra server converters are installed. The rootless runtime and port 9040 stay the same.

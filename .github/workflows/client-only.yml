@@ -40,7 +40,7 @@ jobs:
         with:
           python-version: '3.12'
       - run: python -m pip install pytest
-      - run: PYTHONPATH=backend python -m pytest --noconftest -q backend/tests/test_client_only_boundary.py
+      - run: PYTHONPATH=backend python -m pytest --noconftest -q backend/tests/test_client_only_boundary.py backend/tests/test_client_only_headers.py
 
   minimal-docker:
     runs-on: ubuntu-latest
@@ -91,7 +91,7 @@ jobs:
       - name: Assert no document traffic or server file storage
         run: |
           docker logs caddy-ci > /tmp/caddy-access.log 2>&1
-          if grep -Eq 'PRIVATE_MARKER|RICH_PRIVATE_OFFICE|LAST_WIDE_CELL|SECOND_SHEET_MARKER' /tmp/caddy-access.log; then cat /tmp/caddy-access.log; exit 1; fi
+          if grep -Eq 'PRIVATE_MARKER|RICH_PRIVATE_OFFICE|LAST_WIDE_CELL|SECOND_SHEET_MARKER|OFFICE_NATIVE_PRIVATE|HEADER_NATIVE_PRIVATE|FOOTER_NATIVE_PRIVATE|LOCAL%20OCR' /tmp/caddy-access.log; then cat /tmp/caddy-access.log; exit 1; fi
           docker exec transmute-ci python -c "from pathlib import Path; p=Path('/app/data'); assert not any((p/name).exists() for name in ('uploads','outputs','chunks','tmp'))"
       - uses: actions/upload-artifact@v4
         if: always()

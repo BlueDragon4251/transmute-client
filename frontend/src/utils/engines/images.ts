@@ -16,3 +16,14 @@ export async function validateImageSource(file: File): Promise<void> {
     }
   }
 }
+
+/** Blob URLs are local and revoked; SVG is validated before the decoder sees it. */
+export async function loadLocalImage(file:File):Promise<{source:CanvasImageSource;width:number;height:number;close:()=>void}> {
+  await validateImageSource(file)
+  if(extension(file.name)!=='svg') {
+    const bitmap=await createImageBitmap(file)
+    return {source:bitmap,width:bitmap.width,height:bitmap.height,close:()=>bitmap.close()}
+  }
+  const url=URL.createObjectURL(file),image=new Image()
+  try {image.src=url;await image.decode();if(!image.naturalWidth||!image.naturalHeight)throw Error('SVG benötigt gültige Abmessungen');return {source:image,width:image.naturalWidth,height:image.naturalHeight,close:()=>URL.revokeObjectURL(url)}}catch(error){URL.revokeObjectURL(url);throw error}
+}

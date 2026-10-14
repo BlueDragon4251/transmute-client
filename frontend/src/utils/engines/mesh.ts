@@ -36,6 +36,9 @@ export async function meshConvertAdvanced(file: File, to: string, options: Conve
     const geometry = from === 'ply' ? new PLYLoader().parse(bytes) : new STLLoader().parse(bytes)
     scene.add(new THREE.Mesh(geometry, new THREE.MeshStandardMaterial()))
   }
+  return exportMeshScene(scene,to,options)
+}
+export async function exportMeshScene(scene:THREE.Object3D,to:string,options:ConversionOptions):Promise<Result>{
   let triangles = 0
   scene.traverse(obj => {
     if (obj instanceof THREE.Mesh) {

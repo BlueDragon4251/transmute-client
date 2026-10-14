@@ -6,15 +6,18 @@ import { extension } from '../utils/engines/common'
 
 type Item = { id: number; file: File; format: LocalFormat | ''; state: 'ready'|'running'|'done'|'error'; progress: number; message: string }
 type Download = { file: File; url: string }
-const labels: Partial<Record<LocalFormat, string>> = { 'pdf-extract': 'PDF · Seiten extrahieren', 'pdf-split': 'PDF · einzelne Seiten als ZIP', 'pdf-rotate': 'PDF · Seiten drehen', 'pdf-png': 'PNG · alle Seiten als ZIP', 'pdf-jpeg': 'JPEG · alle Seiten als ZIP', gunzip: 'GZIP entpacken · Originalformat' }
+const labels: Partial<Record<LocalFormat, string>> = { 'pdf-extract': 'PDF · Seiten extrahieren', 'pdf-split': 'PDF · einzelne Seiten als ZIP', 'pdf-rotate': 'PDF · Seiten drehen', 'pdf-png': 'PNG · alle Seiten als ZIP', 'pdf-jpeg': 'JPEG · alle Seiten als ZIP', 'ocr-txt': 'OCR · Text erkennen', 'ocr-pdf': 'OCR · durchsuchbares PDF', gunzip: 'GZIP entpacken · Originalformat' }
 const formatLabel = (format: LocalFormat) => labels[format] || format.toUpperCase()
 function formatNotice(file: File): string {
   const ext = extension(file.name)
-  if (['docx','odt','fodt'].includes(ext)) return 'Dokumente: Absätze, Überschriften, grundlegende Textformatierung, Rasterbilder und Tabellen werden übernommen. Schriftfamilien, schwebende Objekte, Kopf-/Fußzeilen und komplexe Seitenlayouts können abweichen. Verluste erscheinen als Hinweise.'
-  if (['pptx','odp','fodp'].includes(ext)) return 'Folien: Textformatierung, Positionen, Rasterbilder, einfache Formen und Tabellen. Schriftfamilien, Master-Elemente, Diagramme, Animationen und komplexe Transformationen können abweichen; Hinweise werden pro Ergebnis angezeigt.'
-  if (['xlsx','xls','xlsb','ods','fods','csv','tsv'].includes(ext)) return 'Tabellen: Werte, Blätter und unterstützte Formeln; keine Makros, Diagramme oder vollständige Formatierung. CSV/TSV exportiert das erste Blatt, PDF ein paginiertes Zellraster (breite Blätter in Spaltenabschnitten). Formeln werden nicht neu berechnet.'
-  if (ext === 'pdf') return 'PDF-Bilder enthalten alle ausgewählten Seiten als ZIP. Text benötigt eine Textschicht; keine OCR. Änderungen können digitale Signaturen ungültig machen. Geschützte PDFs werden abgelehnt.'
-  if (['stl','obj','ply','gltf','glb'].includes(ext)) return '3D-Meshes: STL/OBJ/PLY verlieren Materialien, UVs und Szenenfunktionen. GLTF muss Ressourcen einbetten. Kein STEP/DWG; keine externen Ressourcen oder Kompressions-Erweiterungen.'
+  if (['docx','odt','fodt'].includes(ext)) return 'Dokumente: Absätze, Überschriften, grundlegende Textformatierung, Rasterbilder und Tabellen werden übernommen. Der genauere Export übernimmt auch Seitenlayout und Kopf-/Fußzeilen. Schriftarten und komplexe Importfilter können abweichen; der Basisexport erhält weniger Details. Verluste erscheinen als Hinweise.'
+  if (['pptx','odp','fodp'].includes(ext)) return 'Folien: Textformatierung, Positionen, Rasterbilder, einfache Formen und Tabellen. Der genauere Export übernimmt auch unterstützte Diagramme und Master-Layouts. Schriftarten, Animationen und komplexe Importfilter können abweichen; Hinweise werden pro Ergebnis angezeigt.'
+  if (['xlsx','xls','xlsb','ods','fods','csv','tsv'].includes(ext)) return 'Tabellen: Der genauere Office-Export nutzt Layout, Druckbereiche und Formelberechnung von LibreOffice. Externe Daten und Makros bleiben gesperrt. Der Basisexport verwendet Werte und gespeicherte Formelergebnisse; CSV/TSV exportiert das erste Blatt.'
+  if (['doc','rtf','ppt'].includes(ext)) return 'Dieses ältere Office-Format benötigt den genaueren Office-Export auf HTTPS/localhost. Makros und externe Nachlade-Ressourcen werden gesperrt.'
+  if (['step','stp','iges','igs','brep'].includes(ext)) return 'CAD-Körper werden lokal als Mesh trianguliert. Körperparameter gehen verloren; STEP/IGES werden auf Millimeter normalisiert, GLTF/GLB auf Meter. Externe Bauteile werden nicht geladen.'
+  if (['dwg','dxf'].includes(ext)) return 'Zeichnungen: DXF-/Datenexport und 2D-Ansicht. Proprietäre Objekte, Layouts und Schriftformen können abweichen. Externe Referenzen werden nicht geladen; keine DWG-Ausgabe.'
+  if (ext === 'pdf') return 'PDF-Bilder enthalten alle ausgewählten Seiten als ZIP. TXT liest die Textschicht; OCR erkennt Text in Scans (Deutsch/Englisch). OCR-PDF rendert Seiten neu und kann Erkennungsfehler enthalten. Änderungen können digitale Signaturen ungültig machen. Geschützte PDFs werden abgelehnt.'
+  if (['stl','obj','ply','gltf','glb'].includes(ext)) return '3D-Meshes: STL/OBJ/PLY verlieren Materialien, UVs und Szenenfunktionen. GLTF muss Ressourcen einbetten. Keine externen Ressourcen oder Kompressions-Erweiterungen.'
   if (['ttf','otf','woff','woff2'].includes(ext)) return 'Statische Kontur-Schriften: TTF/WOFF/WOFF2. CFF-OTF wird in quadratische Konturen umgewandelt; Layouttabellen können verloren gehen. Variable/Color-Fonts und OTF-Ausgabe sind nicht unterstützt.'
   if (['mp4','mov','mkv','avi','webm','m4v','mpeg','mpg','ts','wav','mp3','aac','m4a','ogg','flac','opus','aiff','wma'].includes(ext)) return 'FFmpeg-WASM: lokale Kodierung; HTTPS/localhost erforderlich. Maximal 256 MiB und 10 Minuten Laufzeit pro Datei. Nur erste Video-/Audiospur; Untertitel/weitere Spuren gehen verloren. GIF ohne Ton.'
   if (file.type.startsWith('image/') || ['svg','png','jpg','gif','avif','bmp','ico'].includes(ext)) return 'Bildexport: Einzelbild; Animation geht verloren. JPEG/BMP ohne Transparenz. ICO: ein 256px-Symbol. Decoder abhängig vom Browser; SVG mit aktiven/externen Ressourcen wird abgelehnt.'
@@ -30,10 +33,14 @@ export default function LocalConverter() {
   const [error, setError] = useState('')
   const [pages, setPages] = useState('')
   const [rotation, setRotation] = useState(90)
+  const [officeEngine,setOfficeEngine] = useState<'libreoffice'|'structured'>('libreoffice')
+  const [ocrLanguage,setOcrLanguage] = useState<'eng'|'deu'|'deu+eng'>('deu+eng')
   const [globalFormat, setGlobalFormat] = useState<LocalFormat | ''>('')
   const controller = useRef<AbortController | null>(null)
   const urls = useRef<string[]>([]), sequence = useRef(0)
   useEffect(() => () => { controller.current?.abort(); urls.current.forEach(URL.revokeObjectURL) }, [])
+  const hasOffice = items.some(i=>['docx','odt','fodt','doc','rtf','xlsx','xls','xlsb','ods','fods','pptx','odp','fodp','ppt'].includes(extension(i.file.name)))
+  const hasOcr = items.some(i=>formatsFor(i.file).includes('ocr-txt'))
   const files = items.map(i => i.file)
   const common = items.length ? items.map(i => formatsFor(i.file)).reduce((a,b) => a.filter(f => b.includes(f))) : []
   const completed = items.filter(i => ['done','error'].includes(i.state)).length
@@ -60,7 +67,7 @@ export default function LocalConverter() {
         if (!item.format) { patch(item.id, {state:'error',progress:100,message:'Für diese Datei ist kein Konverter verfügbar'}); continue }
         patch(item.id, {state:'running',progress:0,message:'Lokal vorbereiten'})
         try {
-          const output = await convertLocal(item.file, item.format, { pages, rotation, signal: abort.signal, onProgress: (progress,message) => patch(item.id,{progress,message}) })
+          const output = await convertLocal(item.file, item.format, { pages, rotation, officeEngine, ocrLanguage, signal: abort.signal, onProgress: (progress,message) => patch(item.id,{progress,message}) })
           const name = item.file.name.replace(/\.[^.]+$/, '') + '.' + output.extension
           addDownload(new File([output.blob],name,{type:output.blob.type}))
           patch(item.id,{state:'done',progress:100,message:'Fertig · Download bereit'+(output.warnings?.length?' · Hinweise: '+output.warnings.join(' '):'')})
@@ -118,6 +125,10 @@ export default function LocalConverter() {
           <progress className="mt-3 w-full accent-primary" max={100} value={item.progress} aria-label={`Fortschritt ${item.file.name}`} />
           {item.message && <p role={item.state==='error'?'alert':'status'} className={`mt-1 text-sm ${item.state==='error'?'text-red-400':'text-text-muted'}`}>{item.message}</p>}
         </li>)}</ul>
+        {(hasOffice||hasOcr) && <div className="mt-5 flex flex-wrap gap-4 rounded-xl bg-surface-light/30 p-4">
+          {hasOffice && <label className="text-sm">Office/PDF-Export<select aria-label={t("localConverter.officeEngine", "Office-Engine")} value={officeEngine} disabled={busy} onChange={e=>setOfficeEngine(e.target.value as 'libreoffice'|'structured')} className="mt-2 block rounded-lg bg-surface-light p-2"><option value="libreoffice">Genaueres Layout · mehr Speicher</option><option value="structured">Schneller Basisexport</option></select></label>}
+          {hasOcr && <label className="text-sm">OCR-Sprache<select aria-label={t("localConverter.ocrLanguage", "OCR-Sprache")} value={ocrLanguage} disabled={busy} onChange={e=>setOcrLanguage(e.target.value as 'eng'|'deu'|'deu+eng')} className="mt-2 block rounded-lg bg-surface-light p-2"><option value="deu+eng">Deutsch + Englisch</option><option value="deu">Deutsch</option><option value="eng">Englisch</option></select></label>}
+        </div>}
         {files.some(f=>extension(f.name)==='pdf') && <div className="mt-5 flex flex-wrap gap-4 rounded-xl bg-surface-light/30 p-4">
           <label className="text-sm">PDF-Seiten (leer = alle)<input aria-label={t("localConverter.pages", "PDF-Seiten")} value={pages} disabled={busy} onChange={e=>setPages(e.target.value)} placeholder={t("localConverter.pageExample", "1-3,5")} className="mt-2 block rounded-lg bg-surface-light p-2" /></label>
           <label className="text-sm">Drehung<select aria-label={t("localConverter.rotation", "PDF-Drehung")} value={rotation} disabled={busy} onChange={e=>setRotation(Number(e.target.value))} className="mt-2 block rounded-lg bg-surface-light p-2">{[90,180,270].map(v=><option key={v} value={v}>{v}°</option>)}</select></label>
@@ -140,7 +151,7 @@ export default function LocalConverter() {
       <p className="mt-4 text-xs text-text-muted">Ergebnisse liegen nur im Arbeitsspeicher dieses Tabs. Vor dem Schließen herunterladen.</p>
     </section>}
     <details className="mt-6 rounded-2xl border border-surface-light p-5 text-sm text-text-muted"><summary className="cursor-pointer font-semibold text-text">Unterstützung und Grenzen</summary>
-      <p className="mt-3 leading-relaxed">Die Auswahlliste zeigt echte lokale Konverter. DOCX/ODT erhalten grundlegende Formatierung, Bilder und Tabellen; PPTX/ODP übernehmen unterstützte Folienobjekte und Positionen. Komplexe Office-Layouts bleiben eingeschränkt. DOC/PPT, DWG/STEP, OCR, PDF/A, OTF-Erstellung und RAR/7z werden nicht angeboten. Beschädigte, verschlüsselte oder vom Decoder nicht unterstützte Dateien erhalten einen Fehler.</p>
+      <p className="mt-3 leading-relaxed">Der genauere Office/PDF-Export lädt eine große lokale Engine, benötigt mehr Arbeitsspeicher und setzt HTTPS/localhost voraus. HTML-/Textausgabe verwendet das strukturierte Modell. Die Auswahlliste zeigt echte lokale Konverter. DOCX/ODT erhalten grundlegende Formatierung, Bilder und Tabellen; PPTX/ODP übernehmen unterstützte Folienobjekte und Positionen. Komplexe Office-Layouts bleiben eingeschränkt. OCR, CAD-Körper und DWG-Zeichnungen haben eigene lokale Engines. PDF/A, OTF-Erstellung, RAR/7z und neue DWG-Dateien werden nicht angeboten. Beschädigte, verschlüsselte oder vom Decoder nicht unterstützte Dateien erhalten einen Fehler.</p>
       <p className="mt-3 leading-relaxed">Aktuelle Desktop-Browser verwenden. Medien und komplexe Dateien brauchen Arbeitsspeicher und können länger dauern. Der Server speichert nur Konten und Einstellungen; keine Dateinamen, Konvertierungshistorie oder Inhalte.</p>
     </details>
   </div>

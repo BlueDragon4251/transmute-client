@@ -1,5 +1,5 @@
 export type ConversionOptions = {
-  pages?: string; rotation?: number; scale?: number; quality?: number
+  ocrLanguage?: 'eng'|'deu'|'deu+eng'; officeEngine?: 'structured'|'libreoffice'; pages?: string; rotation?: number; scale?: number; quality?: number
   signal?: AbortSignal; onProgress?: (value: number, message: string) => void
 }
 export type Result = { blob: Blob; extension: string; warnings?: string[] }

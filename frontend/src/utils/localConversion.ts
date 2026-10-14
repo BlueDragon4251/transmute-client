@@ -1,7 +1,7 @@
 import { checkpoint, type ConversionOptions, type Result } from './engines/common'
-import { documentInputs, sheetInputs, slideInputs, audioInputs, videoInputs, audioOutputs, videoOutputs } from './engines/capabilities'
+import { documentInputs, sheetInputs, slideInputs, audioInputs, videoInputs, audioOutputs, videoOutputs, legacyDocumentInputs, legacySlideInputs } from './engines/capabilities'
 /** Entirely local conversions. No fetch, XMLHttpRequest, or server fallback. */
-export type LocalFormat = 'png'|'jpeg'|'webp'|'bmp'|'ico'|'txt'|'json'|'csv'|'tsv'|'html'|'xml'|'md'|'yaml'|'yml'|'pdf'|'zip'|'tar'|'wav'|'gz'|'gunzip'|'webm'|'mp4'|'mkv'|'gif'|'mp3'|'flac'|'ogg'|'m4a'|'opus'|'obj'|'stl'|'ply'|'gltf'|'glb'|'ttf'|'woff'|'woff2'|'docx'|'odt'|'xlsx'|'ods'|'xls'|'pptx'|'odp'|'pdf-extract'|'pdf-split'|'pdf-rotate'|'pdf-png'|'pdf-jpeg'
+export type LocalFormat = 'png'|'jpeg'|'webp'|'bmp'|'ico'|'txt'|'json'|'csv'|'tsv'|'html'|'xml'|'md'|'yaml'|'yml'|'pdf'|'zip'|'tar'|'wav'|'gz'|'gunzip'|'webm'|'mp4'|'mkv'|'gif'|'mp3'|'flac'|'ogg'|'m4a'|'opus'|'obj'|'stl'|'ply'|'gltf'|'glb'|'ttf'|'woff'|'woff2'|'docx'|'odt'|'xlsx'|'ods'|'xls'|'pptx'|'odp'|'pdf-extract'|'pdf-split'|'pdf-rotate'|'pdf-png'|'pdf-jpeg'|'ocr-txt'|'ocr-pdf'|'svg'|'dxf'|'doc'|'rtf'|'ppt'
 export type Output = Result
 const textTypes = new Set(['txt','json','csv','tsv','html','xml','md','yaml','yml'])
 const imageTypes = new Set(['png','jpeg','webp','bmp','ico','svg'])
@@ -11,17 +11,22 @@ const blob = (value:string, format:string):Output => ({blob:new Blob([value],{ty
 export const formatsFor = (file: File): LocalFormat[] => {
   const e = ext(file.name)
   let formats: string[] = []
-  if (e === 'pdf') formats = ['txt','pdf-png','pdf-jpeg','pdf-extract','pdf-split','pdf-rotate']
-  else if (documentInputs.includes(e)) formats = ['docx','odt','txt','html','pdf']
+  if (e === 'pdf') formats = ['txt','pdf-png','pdf-jpeg','pdf-extract','pdf-split','pdf-rotate','ocr-txt','ocr-pdf']
+  else if (legacyDocumentInputs.includes(e)) formats = ['docx','odt','doc','rtf','txt','html','pdf']
+  else if (legacySlideInputs.includes(e)) formats = ['pptx','odp','ppt','txt','html','pdf']
+  else if (documentInputs.includes(e)) formats = ['docx','odt','doc','rtf','txt','html','pdf']
   else if (sheetInputs.includes(e)) formats = ['xlsx','ods','xls','csv','tsv','json','txt','html','pdf']
-  else if (slideInputs.includes(e)) formats = ['pptx','odp','txt','html','pdf']
+  else if (slideInputs.includes(e)) formats = ['pptx','odp','ppt','txt','html','pdf']
+  else if (['step','stp','iges','igs','brep'].includes(e)) formats = ['stl','obj','ply','gltf','glb']
+  else if (e === 'dwg') formats = ['dxf','svg','json','png','pdf']
+  else if (e === 'dxf') formats = ['svg','json','png','pdf']
   else if (['stl','obj','ply','gltf','glb'].includes(e)) formats = ['stl','obj','ply','gltf','glb']
   else if (['ttf','otf','woff','woff2'].includes(e)) formats = ['ttf','woff','woff2']
   else if (['zip','tar'].includes(e)) formats = e === 'zip' ? ['tar'] : ['zip']
   else if (e === 'gz') formats = ['gunzip']
   else if (videoInputs.includes(e)) formats = [...videoOutputs,...audioOutputs]
   else if (audioInputs.includes(e)) formats = audioOutputs
-  else if (imageTypes.has(e) || ['jpg','jfif','gif','avif'].includes(e) || file.type.startsWith('image/')) formats = ['png','jpeg','webp','bmp','ico','pdf']
+  else if (imageTypes.has(e) || ['jpg','jfif','gif','avif'].includes(e) || file.type.startsWith('image/')) formats = ['png','jpeg','webp','bmp','ico','pdf','ocr-txt','ocr-pdf']
   else if (['json','yaml','yml','xml','csv','tsv'].includes(e)) formats = ['txt','json','yaml','xml','csv','tsv','gz','pdf',...(['csv','tsv'].includes(e) ? ['xlsx','ods','xls','html'] : [])]
   else if (textTypes.has(e)) formats = ['txt','gz','pdf','docx','odt','pptx','odp']
   return formats.filter(f => f !== e) as LocalFormat[]
@@ -67,13 +72,13 @@ function encodeStructured(data:unknown,to:string):string {
 }
 async function imageOutput(file:File,to:LocalFormat):Promise<Output> {
   await (await import('./engines/images')).validateImageSource(file)
-  const bitmap=await createImageBitmap(file)
+  const bitmap=await (await import('./engines/images')).loadLocalImage(file)
   try {
     if (bitmap.width * bitmap.height > 40_000_000) throw Error('Bild überschreitet 40 Megapixel')
     const canvas=document.createElement('canvas');canvas.width=bitmap.width;canvas.height=bitmap.height
     const ctx=canvas.getContext('2d');if(!ctx)throw Error('Canvas nicht verfügbar')
     if(to==='jpeg'||to==='bmp'){ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height)}
-    ctx.drawImage(bitmap,0,0)
+    ctx.drawImage(bitmap.source,0,0)
     if(to==='bmp'){
       const pixels=ctx.getImageData(0,0,canvas.width,canvas.height)
       const stride=(canvas.width*3+3)&~3;const size=54+stride*canvas.height
@@ -132,8 +137,13 @@ export async function convertLocal(file: File, to: LocalFormat, options: Convers
   // Yield before CPU work so the progress state can paint.
   await new Promise(resolve => setTimeout(resolve, 0))
   let output: Output
-  if (from === 'pdf') output = await (await import('./engines/pdf')).transformPdf(file, to, options)
+  const legacyDoc=legacyDocumentInputs.includes(from),legacySlide=legacySlideInputs.includes(from),nativeTarget=['doc','rtf','ppt','docx','odt','xlsx','ods','xls','pptx','odp','pdf'].includes(to)
+  if ((['doc','rtf','ppt'].includes(to)||legacyDoc||legacySlide||(options.officeEngine==='libreoffice'&&(documentInputs.includes(from)||sheetInputs.includes(from)||slideInputs.includes(from))))&&nativeTarget) output=await (await import('./engines/nativeOffice')).nativeOfficeConvert(file,to,options)
+  else if (legacyDoc||legacySlide){const native=await (await import('./engines/nativeOffice')).nativeOfficeConvert(file,legacyDoc?'docx':'pptx',options);output=await (await import('./engines/office')).officeConvert(new File([native.blob],legacyDoc?'converted.docx':'converted.pptx'),to,options)}
+  else if (to === 'ocr-txt' || to === 'ocr-pdf') output = await (await import('./engines/ocr')).ocrConvert(file,to,options)
+  else if (from === 'pdf') output = await (await import('./engines/pdf')).transformPdf(file, to, options)
   else if (documentInputs.includes(from) || sheetInputs.includes(from) || slideInputs.includes(from) || ['docx','odt','pptx','odp','xlsx','ods','xls'].includes(to) || from === 'html' && ['txt','pdf'].includes(to) || ['csv','tsv'].includes(from) && ['html','pdf'].includes(to)) output = await (await import('./engines/office')).officeConvert(file, to, options)
+  else if (['step','stp','iges','igs','brep','dwg','dxf'].includes(from)) output = await (await import('./engines/cad')).cadConvert(file,to,options)
   else if (['stl','obj','ply','gltf','glb'].includes(from)) output = await (await import('./engines/mesh')).meshConvertAdvanced(file, to, options)
   else if (['ttf','otf','woff','woff2'].includes(from)) output = await (await import('./engines/fonts')).fontConvert(file, to as 'ttf'|'woff'|'woff2', options)
   else if (['zip','tar'].includes(from)) output = await (await import('./engines/archives')).archiveConvert(file, to)
